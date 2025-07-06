@@ -58,11 +58,14 @@ impl Interpreter {
             line_number_map.insert(line.line_number, i);
         }
         
+        let mut internal_symbols = SymbolTable::new();
+        let symbols = internal_symbols.get_nested_scope();
+        
         let mut interpreter = Interpreter {
             program,
             location: ControlLocation { index: 0, offset: 0 },
-            internal_symbols: SymbolTable::new(),
-            symbols: internal_symbols.get_nested_scope(),
+            internal_symbols,
+            symbols,
             for_stack: Vec::new(),
             gosub_stack: Vec::new(),
             data_pointer: 0,
@@ -298,36 +301,17 @@ impl Interpreter {
                 }
                 Ok(())
             }
-            Statement::Dim { var, dimensions } => {
-                if dimensions.is_empty() {
-                    return Err(BasicError::Syntax {
-                        message: "DIM statement requires dimensions".to_string(),
-                        line_number: None,
-                    });
-                }
-                
-                let mut expr = Expression::new_variable(var.clone());
-                for (i, dim) in dimensions.iter().enumerate() {
-                    let index = Expression::new_number(dim as f64);
-                    if i > 0 {
-                        expr = Expression::new_binary_op(
-                            "(".to_string(),
-                            expr,
-                            Expression::new_binary_op(
-                                ",".to_string(),
-                                index,
-                                Expression::new_number(0.0),
-                            ),
-                        );
-                    } else {
-                        expr = Expression::new_binary_op(
-                            expr,
-                            index,
-                        );
+            Statement::Dim { arrays } => {
+                for array in arrays {
+                    if array.dimensions.is_empty() {
+                        return Err(BasicError::Syntax {
+                            message: format!("Array '{}' requires at least one dimension", array.name),
+                            line_number: None,
+                        });
                     }
+
+                    self.put_symbol(array.name.clone(), SymbolValue::Array(array.dimensions.clone()));
                 }
-                
-                self.put_symbol(var.clone(), SymbolValue::Array(expr));
                 Ok(())
             }
         }
