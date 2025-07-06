@@ -257,14 +257,13 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub fn new_let(var: String, expr: Expression) -> Self {
-        Statement::Let { var, expr }
+    pub fn new_let(var: String, value: Expression) -> Self {
+        Statement::Let { var, value }
     }
 
-    pub fn new_print(exprs: Vec<Expression>) -> Self {
-        Statement::Print { exprs }
+    pub fn new_print(expressions: Vec<Expression>) -> Self {
+        Statement::Print { expressions }
     }
-
     pub fn new_input(var: String) -> Self {
         Statement::Input { var }
     }
@@ -305,20 +304,21 @@ impl Statement {
         Statement::Rem { comment }
     }
 
-    pub fn new_data(values: Vec<SymbolValue>) -> Self {
+    pub fn new_data(values: Vec<Expression>) -> Self {
         Statement::Data { values }
     }
 
-    pub fn new_read(vars: Vec<String>) -> Self {
-        Statement::Read { vars }
+    pub fn new_read(var: String) -> Self {
+        Statement::Read { var }
     }
 
-    pub fn new_restore() -> Self {
-        Statement::Restore
+    pub fn new_restore(line: Option<usize>) -> Self {
+        Statement::Restore { line }
     }
 
-    pub fn new_dim(var: String, dimensions: Vec<Expression>) -> Self {
-        Statement::Dim { var, dimensions }
+    
+    pub fn new_dim(arrays: Vec<ArrayDecl>) -> Self {
+        Statement::Dim { arrays }
     }
 
     pub fn new_on_goto(expr: Expression, line_numbers: Vec<usize>) -> Self {
