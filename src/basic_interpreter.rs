@@ -102,11 +102,11 @@ impl Interpreter {
     }
 
     pub fn get_symbol_value(&self, name: &str) -> Option<&SymbolValue> {
-        self.symbols.get(name)
+        self.symbols.get_symbol(name)
     }
 
     pub fn set_symbol_value(&mut self, name: String, value: SymbolValue) {
-        self.symbols.put(name, value);
+        self.symbols.put_symbol(name, value);
     }
 
     pub fn get_current_line_number(&self) -> usize {
@@ -440,9 +440,9 @@ impl Interpreter {
 
     fn get_symbol(&self, name: &str) -> Result<SymbolValue, BasicError> {
         // Try current scope first, then parent scopes
-        if let Some(value) = self.symbols.get(name) {
+        if let Some(value) = self.symbols.get_symbol(name) {
             Ok(value.clone())
-        } else if let Some(value) = self.internal_symbols.get(name) {
+        } else if let Some(value) = self.internal_symbols.get_symbol(name) {
             Ok(value.clone())
         } else {
             Err(BasicError::Runtime {
@@ -454,7 +454,7 @@ impl Interpreter {
 
     fn put_symbol(&mut self, name: String, value: SymbolValue) {
         // Always put in current scope
-        self.symbols.put(name, value);
+        self.symbols.put_symbol(name, value);
         if self.data_breakpoints.contains(&name) {
             self.run_status = RunStatus::BreakData;
         }
