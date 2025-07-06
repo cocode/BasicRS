@@ -225,6 +225,12 @@ pub enum SymbolType {
 pub const NUMBERS: &str = "0123456789";
 pub const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArrayDecl {
+    pub name: String,
+    pub dimensions: Vec<usize>,
+}
+
 // Statement types
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -243,8 +249,9 @@ pub enum Statement {
     Data { values: Vec<Expression> },
     Read { var: String },
     Restore { line: Option<usize> },
-    Dim { var: String, dimensions: Vec<usize> }
-}
+    Dim {
+        arrays: Vec<ArrayDecl>,
+    },}
 
 impl Statement {
     pub fn new_print(expressions: Vec<Expression>) -> Self {
