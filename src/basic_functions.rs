@@ -4,6 +4,21 @@ use rand::prelude::*;
 use rand::Rng;
 use std::collections::HashMap;
 
+/// Helper function to validate argument count for BASIC functions
+fn validate_arg_count(args: &[String], expected_count: usize, function_name: &str) -> Result<(), BasicError> {
+    if args.len() != expected_count {
+        return Err(BasicError::Syntax {
+            message: format!("{}() takes exactly {} argument{}", 
+                function_name, 
+                expected_count, 
+                if expected_count == 1 { "" } else { "s" }
+            ),
+            line_number: None,
+        });
+    }
+    Ok(())
+}
+
 #[derive(Clone)]
 pub enum BasicFunction {
     Number {
@@ -79,12 +94,7 @@ lazy_static! {
         m.insert("ABS".to_string(), BasicFunction::Number {
             name: "ABS".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "ABS() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "ABS")?;
 
                 let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for ABS(): '{}'", args[0]),
@@ -98,12 +108,7 @@ lazy_static! {
         m.insert("SQR".to_string(), BasicFunction::Number {
             name: "SQR".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "SQR() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "SQR")?;
 
                 let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for SQR(): '{}'", args[0]),
@@ -117,12 +122,7 @@ lazy_static! {
         m.insert("RND".to_string(), BasicFunction::Number {
             name: "RND".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "RND() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "RND")?;
 
                 use rand::Rng;
                 let mut rng = rand::thread_rng();
@@ -145,12 +145,7 @@ lazy_static! {
         m.insert("LEN".to_string(), BasicFunction::Number {
             name: "LEN".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "LEN() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "LEN")?;
 
                 let s = args[0].trim_matches('"');
                 Ok(s.chars().count().to_string())
@@ -161,12 +156,7 @@ lazy_static! {
         m.insert("LEFT$".to_string(), BasicFunction::String {
             name: "LEFT$".to_string(),
             lambda: |args| {
-                if args.len() != 2 {
-                    return Err(BasicError::Syntax {
-                        message: "LEFT$() takes exactly 2 arguments".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 2, "LEFT$")?;
 
                 let s = args[0].trim_matches('"');
                 let n: usize = args[1].parse().map_err(|_| BasicError::Syntax {
@@ -181,12 +171,7 @@ lazy_static! {
         m.insert("RIGHT$".to_string(), BasicFunction::String {
             name: "RIGHT$".to_string(),
             lambda: |args| {
-                if args.len() != 2 {
-                    return Err(BasicError::Syntax {
-                        message: "RIGHT$() takes exactly 2 arguments".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 2, "RIGHT$")?;
 
                 let s = args[0].trim_matches('"');
                 let n: usize = args[1].parse().map_err(|_| BasicError::Syntax {
@@ -201,15 +186,10 @@ lazy_static! {
         m.insert("MID$".to_string(), BasicFunction::String {
             name: "MID$".to_string(),
             lambda: |args| {
-                if args.len() != 3 {
-                    return Err(BasicError::Syntax {
-                        message: "MID$() takes exactly 3 arguments".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 3, "MID$")?;
 
                 let s = args[0].trim_matches('"');
-                let start: usize = args[1].parse().map_err(|_| BasicError::Syntax {
+                let start: usize = args[1].parse::<usize>().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for MID$() start position: '{}'", args[1]),
                     line_number: None,
                 })?.saturating_sub(1);
@@ -225,12 +205,7 @@ lazy_static! {
         m.insert("CHR$".to_string(), BasicFunction::String {
             name: "CHR$".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "CHR$() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "CHR$")?;
 
                 let value: u8 = args[0].parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for CHR$(): '{}'", args[0]),
@@ -244,12 +219,7 @@ lazy_static! {
         m.insert("SGN".to_string(), BasicFunction::Number {
             name: "SGN".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "SGN() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "SGN")?;
 
                 let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for SGN(): '{}'", args[0]),
@@ -271,12 +241,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "ABS" => Some(BasicFunction::Number {
             name: "ABS".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "ABS() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "ABS")?;
 
                 let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for ABS(): '{}'", args[0]),
@@ -289,12 +254,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "CHR$" => Some(BasicFunction::String {
             name: "CHR$".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "CHR$() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "CHR$")?;
 
                 let value: u8 = args[0].parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for CHR$(): '{}'", args[0]),
@@ -307,12 +267,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "LEFT$" => Some(BasicFunction::String {
             name: "LEFT$".to_string(),
             lambda: |args| {
-                if args.len() != 2 {
-                    return Err(BasicError::Syntax {
-                        message: "LEFT$() takes exactly 2 arguments".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 2, "LEFT$")?;
 
                 let s = args[0].trim_matches('"');
                 let n: usize = args[1].parse().map_err(|_| BasicError::Syntax {
@@ -326,12 +281,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "LEN" => Some(BasicFunction::Number {
             name: "LEN".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "LEN() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "LEN")?;
 
                 let s = args[0].trim_matches('"');
                 Ok(s.chars().count().to_string())
@@ -341,15 +291,10 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "MID$" => Some(BasicFunction::String {
             name: "MID$".to_string(),
             lambda: |args| {
-                if args.len() != 3 {
-                    return Err(BasicError::Syntax {
-                        message: "MID$() takes exactly 3 arguments".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 3, "MID$")?;
 
                 let s = args[0].trim_matches('"');
-                let start: usize = args[1].parse().map_err(|_| BasicError::Syntax {
+                let start: usize = args[1].parse::<usize>().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for MID$() start position: '{}'", args[1]),
                     line_number: None,
                 })?.saturating_sub(1);
@@ -367,12 +312,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "RIGHT$" => Some(BasicFunction::String {
             name: "RIGHT$".to_string(),
             lambda: |args| {
-                if args.len() != 2 {
-                    return Err(BasicError::Syntax {
-                        message: "RIGHT$() takes exactly 2 arguments".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 2, "RIGHT$")?;
 
                 let s = args[0].trim_matches('"');
                 let n: usize = args[1].parse().map_err(|_| BasicError::Syntax {
@@ -395,12 +335,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "RND" => Some(BasicFunction::Number {
             name: "RND".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "RND() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "RND")?;
 
                 use rand::Rng;
                 let mut rng = rand::thread_rng();
@@ -421,12 +356,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "SGN" => Some(BasicFunction::Number {
             name: "SGN".to_string(),
             lambda: |args| {
-                if args.len() != 1 {
-                    return Err(BasicError::Syntax {
-                        message: "SGN() takes exactly 1 argument".to_string(),
-                        line_number: None,
-                    });
-                }
+                validate_arg_count(args, 1, "SGN")?;
 
                 let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric argument for SGN(): '{}'", args[0]),
