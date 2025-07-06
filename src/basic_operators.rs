@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use lazy_static::lazy_static;
 use crate::basic_types::{Token, BasicError, SymbolType};
 
 #[derive(Debug, Clone)]
@@ -234,7 +233,7 @@ pub struct OpDef {
     pub op: Op,
 }
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref OPERATORS: HashMap<String, OpDef> = {
         let mut m = HashMap::new();
         
@@ -403,10 +402,10 @@ lazy_static! {
     };
 }
 
-pub fn get_op_def(operator: &str) -> Option<&'static OpDef> {
-    OPERATORS.get(operator)
-}
 
+pub fn get_op_def(operator: &str) -> Option<&'static OpDef> {
+    (*OPERATORS).get(operator)
+}
 pub fn get_precedence(token: &Token) -> i32 {
     // Extract operator string from token
     let op_str = match token {
