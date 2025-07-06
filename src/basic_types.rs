@@ -251,15 +251,82 @@ pub enum Statement {
     Restore { line: Option<usize> },
     Dim {
         arrays: Vec<ArrayDecl>,
-    },}
+    },
+    OnGoto { expr: Expression, line_numbers: Vec<usize> },
+    Def { name: String, params: Vec<String>, expr: Expression },
+}
 
 impl Statement {
-    pub fn new_print(expressions: Vec<Expression>) -> Self {
-        Statement::Print { expressions }
+    pub fn new_let(var: String, expr: Expression) -> Self {
+        Statement::Let { var, expr }
+    }
+
+    pub fn new_print(exprs: Vec<Expression>) -> Self {
+        Statement::Print { exprs }
+    }
+
+    pub fn new_input(var: String) -> Self {
+        Statement::Input { var }
+    }
+
+    pub fn new_if(condition: Expression, then_stmt: Box<Statement>, else_stmt: Option<Box<Statement>>) -> Self {
+        Statement::If { condition, then_stmt, else_stmt }
+    }
+
+    pub fn new_for(var: String, start: Expression, stop: Expression, step: Option<Expression>) -> Self {
+        Statement::For { var, start, stop, step }
+    }
+
+    pub fn new_next(var: String) -> Self {
+        Statement::Next { var }
+    }
+
+    pub fn new_goto(line: usize) -> Self {
+        Statement::Goto { line }
+    }
+
+    pub fn new_gosub(line: usize) -> Self {
+        Statement::Gosub { line }
+    }
+
+    pub fn new_return() -> Self {
+        Statement::Return
     }
 
     pub fn new_end() -> Self {
         Statement::End
+    }
+
+    pub fn new_stop() -> Self {
+        Statement::Stop
+    }
+
+    pub fn new_rem(comment: String) -> Self {
+        Statement::Rem { comment }
+    }
+
+    pub fn new_data(values: Vec<SymbolValue>) -> Self {
+        Statement::Data { values }
+    }
+
+    pub fn new_read(vars: Vec<String>) -> Self {
+        Statement::Read { vars }
+    }
+
+    pub fn new_restore() -> Self {
+        Statement::Restore
+    }
+
+    pub fn new_dim(var: String, dimensions: Vec<Expression>) -> Self {
+        Statement::Dim { var, dimensions }
+    }
+
+    pub fn new_on_goto(expr: Expression, line_numbers: Vec<usize>) -> Self {
+        Statement::OnGoto { expr, line_numbers }
+    }
+
+    pub fn new_def(name: String, params: Vec<String>, expr: Expression) -> Self {
+        Statement::Def { name, params, expr }
     }
 }
 
