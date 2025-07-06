@@ -4,6 +4,22 @@ use rand::prelude::*;
 use rand::Rng;
 use std::collections::HashMap;
 
+/// Argument types for BASIC functions
+#[derive(Clone, Debug, PartialEq)]
+pub enum ArgType {
+    Number,
+    String,
+}
+
+impl ArgType {
+    pub fn name(&self) -> &str {
+        match self {
+            ArgType::Number => "number",
+            ArgType::String => "string",
+        }
+    }
+}
+
 /// Helper function to validate argument count for BASIC functions
 fn validate_arg_count(args: &[String], expected_count: usize, function_name: &str) -> Result<(), BasicError> {
     if args.len() != expected_count {
@@ -19,17 +35,52 @@ fn validate_arg_count(args: &[String], expected_count: usize, function_name: &st
     Ok(())
 }
 
+/// Helper function to validate and convert arguments based on their expected types
+fn validate_and_convert_args(args: &[String], arg_types: &[ArgType], function_name: &str) -> Result<Vec<String>, BasicError> {
+    validate_arg_count(args, arg_types.len(), function_name)?;
+    
+    let mut converted_args = Vec::new();
+    
+    for (i, (arg, expected_type)) in args.iter().zip(arg_types.iter()).enumerate() {
+        match expected_type {
+            ArgType::Number => {
+                // Try to parse as number to validate
+                arg.parse::<f64>().map_err(|_| BasicError::Syntax {
+                    message: format!("Invalid {} argument for {}(): expected number, got '{}'", 
+                        match i {
+                            0 => "first".to_string(),
+                            1 => "second".to_string(), 
+                            2 => "third".to_string(),
+                            n => format!("{}th", n + 1),
+                        },
+                        function_name, 
+                        arg
+                    ),
+                    line_number: None,
+                })?;
+                converted_args.push(arg.clone());
+            }
+            ArgType::String => {
+                // For strings, we expect them to be quoted or we accept them as-is
+                converted_args.push(arg.clone());
+            }
+        }
+    }
+    
+    Ok(converted_args)
+}
+
 #[derive(Clone)]
 pub enum BasicFunction {
     Number {
         name: String,
         lambda: fn(&[String]) -> Result<String, BasicError>,
-        arg_count: usize,
+        arg_types: Vec<ArgType>,
     },
     String {
         name: String,
         lambda: fn(&[String]) -> Result<String, BasicError>,
-        arg_count: usize,
+        arg_types: Vec<ArgType>,
     },
 }
 
@@ -38,50 +89,47 @@ impl BasicFunction {
         match self {
             BasicFunction::Number {
                 lambda,
-                arg_count,
+                arg_types,
                 name,
             } => {
-                if args.len() != *arg_count {
-                    return Err(BasicError::Syntax {
-                        message: format!("Wrong number of arguments for {}", name),
-                        line_number: None,
-                    });
-                }
-
                 let arg_strings: Vec<String> = args
                     .into_iter()
                     .map(|t| t.token().unwrap_or("").to_string())
                     .collect();
 
-                let result = lambda(&arg_strings)?; // Propagate error from lambda
+                let validated_args = validate_and_convert_args(&arg_strings, arg_types, name)?;
+                let result = lambda(&validated_args)?;
                 Ok(Token::new_number(&result))
             }
 
             BasicFunction::String {
                 lambda,
-                arg_count,
+                arg_types,
                 name,
             } => {
-                if args.len() != *arg_count {
-                    return Err(BasicError::Syntax {
-                        message: format!("Wrong number of arguments for {}", name),
-                        line_number: None,
-                    });
-                }
-
                 let arg_strings: Vec<String> = args
                     .into_iter()
                     .map(|t| t.token().unwrap_or("").to_string())
                     .collect();
-                let result = lambda(&arg_strings)?; // Propagate error from lambda
+                
+                let validated_args = validate_and_convert_args(&arg_strings, arg_types, name)?;
+                let result = lambda(&validated_args)?;
                 Ok(Token::new_string(&result))
             }
         }
     }
+    
     pub fn arg_count(&self) -> usize {
         match self {
-            BasicFunction::Number { arg_count, .. } => *arg_count,
-            BasicFunction::String { arg_count, .. } => *arg_count,
+            BasicFunction::Number { arg_types, .. } => arg_types.len(),
+            BasicFunction::String { arg_types, .. } => arg_types.len(),
+        }
+    }
+    
+    pub fn arg_types(&self) -> &[ArgType] {
+        match self {
+            BasicFunction::Number { arg_types, .. } => arg_types,
+            BasicFunction::String { arg_types, .. } => arg_types,
         }
     }
 }
@@ -94,42 +142,27 @@ lazy_static! {
         m.insert("ABS".to_string(), BasicFunction::Number {
             name: "ABS".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "ABS")?;
-
-                let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for ABS(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(value.abs().to_string())
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         });
 
         m.insert("SQR".to_string(), BasicFunction::Number {
             name: "SQR".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "SQR")?;
-
-                let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for SQR(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok((value * value).to_string())
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         });
 
         m.insert("RND".to_string(), BasicFunction::Number {
             name: "RND".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "RND")?;
-
                 use rand::Rng;
                 let mut rng = rand::thread_rng();
-                let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for RND(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 if value > 0.0 {
                     Ok(rng.gen_range(0.0..1.0).to_string())
                 } else if value < 0.0 {
@@ -138,98 +171,68 @@ lazy_static! {
                     Ok(rng.gen_range(0.0..1.0).to_string())
                 }
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         });
 
         // String functions
         m.insert("LEN".to_string(), BasicFunction::Number {
             name: "LEN".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "LEN")?;
-
                 let s = args[0].trim_matches('"');
                 Ok(s.chars().count().to_string())
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::String],
         });
 
         m.insert("LEFT$".to_string(), BasicFunction::String {
             name: "LEFT$".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 2, "LEFT$")?;
-
                 let s = args[0].trim_matches('"');
-                let n: usize = args[1].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for LEFT$(): '{}'", args[1]),
-                    line_number: None,
-                })?;
+                let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(format!("\"{}\"", s.chars().take(n).collect::<String>()))
             },
-            arg_count: 2,
+            arg_types: vec![ArgType::String, ArgType::Number],
         });
 
         m.insert("RIGHT$".to_string(), BasicFunction::String {
             name: "RIGHT$".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 2, "RIGHT$")?;
-
                 let s = args[0].trim_matches('"');
-                let n: usize = args[1].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for RIGHT$(): '{}'", args[1]),
-                    line_number: None,
-                })?;
+                let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(format!("\"{}\"", s.chars().rev().take(n).collect::<String>().chars().rev().collect::<String>()))
             },
-            arg_count: 2,
+            arg_types: vec![ArgType::String, ArgType::Number],
         });
 
         m.insert("MID$".to_string(), BasicFunction::String {
             name: "MID$".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 3, "MID$")?;
-
                 let s = args[0].trim_matches('"');
-                let start: usize = args[1].parse::<usize>().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for MID$() start position: '{}'", args[1]),
-                    line_number: None,
-                })?.saturating_sub(1);
-                let len: usize = args[2].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for MID$() length: '{}'", args[2]),
-                    line_number: None,
-                })?;
+                let start: usize = args[1].parse::<usize>().unwrap().saturating_sub(1); // Already validated by validate_and_convert_args
+                let len: usize = args[2].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(format!("\"{}\"", s.chars().skip(start).take(len).collect::<String>()))
             },
-            arg_count: 3,
+            arg_types: vec![ArgType::String, ArgType::Number, ArgType::Number],
         });
 
         m.insert("CHR$".to_string(), BasicFunction::String {
             name: "CHR$".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "CHR$")?;
-
-                let value: u8 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for CHR$(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: u8 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(format!("\"{}\"", char::from(value)))
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         });
 
         m.insert("SGN".to_string(), BasicFunction::Number {
             name: "SGN".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "SGN")?;
-
-                let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for SGN(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(if value > 0.0 { "1" }
                 else if value < 0.0 { "-1" }
                 else { "0" }.to_string())
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         });
 
         m
@@ -241,84 +244,54 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
         "ABS" => Some(BasicFunction::Number {
             name: "ABS".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "ABS")?;
-
-                let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for ABS(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(value.abs().to_string())
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         }),
         "CHR$" => Some(BasicFunction::String {
             name: "CHR$".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "CHR$")?;
-
-                let value: u8 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for CHR$(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: u8 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(format!("\"{}\"", char::from(value)))
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         }),
         "LEFT$" => Some(BasicFunction::String {
             name: "LEFT$".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 2, "LEFT$")?;
-
                 let s = args[0].trim_matches('"');
-                let n: usize = args[1].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for LEFT$(): '{}'", args[1]),
-                    line_number: None,
-                })?;
+                let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(format!("\"{}\"", s.chars().take(n).collect::<String>()))
             },
-            arg_count: 2,
+            arg_types: vec![ArgType::String, ArgType::Number],
         }),
         "LEN" => Some(BasicFunction::Number {
             name: "LEN".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "LEN")?;
-
                 let s = args[0].trim_matches('"');
                 Ok(s.chars().count().to_string())
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::String],
         }),
         "MID$" => Some(BasicFunction::String {
             name: "MID$".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 3, "MID$")?;
-
                 let s = args[0].trim_matches('"');
-                let start: usize = args[1].parse::<usize>().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for MID$() start position: '{}'", args[1]),
-                    line_number: None,
-                })?.saturating_sub(1);
-                let len: usize = args[2].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for MID$() length: '{}'", args[2]),
-                    line_number: None,
-                })?;
+                let start: usize = args[1].parse::<usize>().unwrap().saturating_sub(1); // Already validated by validate_and_convert_args
+                let len: usize = args[2].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(format!(
                     "\"{}\"",
                     s.chars().skip(start).take(len).collect::<String>()
                 ))
             },
-            arg_count: 3,
+            arg_types: vec![ArgType::String, ArgType::Number, ArgType::Number],
         }),
         "RIGHT$" => Some(BasicFunction::String {
             name: "RIGHT$".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 2, "RIGHT$")?;
-
                 let s = args[0].trim_matches('"');
-                let n: usize = args[1].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for RIGHT$(): '{}'", args[1]),
-                    line_number: None,
-                })?;
+                let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(format!(
                     "\"{}\"",
                     s.chars()
@@ -330,19 +303,14 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
                         .collect::<String>()
                 ))
             },
-            arg_count: 2,
+            arg_types: vec![ArgType::String, ArgType::Number],
         }),
         "RND" => Some(BasicFunction::Number {
             name: "RND".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "RND")?;
-
                 use rand::Rng;
                 let mut rng = rand::thread_rng();
-                let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for RND(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 if value > 0.0 {
                     Ok(rng.gen_range(0.0..1.0).to_string())
                 } else if value < 0.0 {
@@ -351,17 +319,12 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
                     Ok(rng.gen_range(0.0..1.0).to_string())
                 }
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         }),
         "SGN" => Some(BasicFunction::Number {
             name: "SGN".to_string(),
             lambda: |args| {
-                validate_arg_count(args, 1, "SGN")?;
-
-                let value: f64 = args[0].parse().map_err(|_| BasicError::Syntax {
-                    message: format!("Invalid numeric argument for SGN(): '{}'", args[0]),
-                    line_number: None,
-                })?;
+                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
                 Ok(if value > 0.0 {
                     "1"
                 } else if value < 0.0 {
@@ -371,7 +334,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
                 }
                 .to_string())
             },
-            arg_count: 1,
+            arg_types: vec![ArgType::Number],
         }),
         _ => None,
     }
