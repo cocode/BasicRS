@@ -7,6 +7,7 @@ use rand::prelude::*;
 use crate::basic_types::{
     Program, ProgramLine, Statement, Expression, BasicError,
     ExpressionType, RunStatus, SymbolValue,
+    Token,
 };
 
 use crate::basic_symbols:: {
@@ -36,8 +37,8 @@ pub struct ForRecord {
 pub struct Interpreter {
     program: Program,
     location: ControlLocation,
-    internal_symbols: SymbolTable,  // Internal symbol table with nested scopes
-    symbols: SymbolTable,           // Public symbol table
+    internal_symbols: SymbolTable,  // Internal symbol table for function definitions
+    symbols: SymbolTable,           // Current scope symbol table
     for_stack: Vec<ForRecord>,
     gosub_stack: Vec<ControlLocation>,
     data_pointer: usize,
@@ -61,7 +62,7 @@ impl Interpreter {
         let mut internal_symbols = SymbolTable::new();
         let symbols = internal_symbols.get_nested_scope();
         
-        let mut interpreter = Interpreter {
+        Interpreter {
             program,
             location: ControlLocation { index: 0, offset: 0 },
             internal_symbols,
@@ -76,47 +77,82 @@ impl Interpreter {
             breakpoints: HashSet::new(),
             data_breakpoints: HashSet::new(),
             line_number_map,
-        };
-        
-        interpreter
+        }
+    }
+
+    pub fn enable_trace(&mut self) -> io::Result<()> {
+        self.trace_file = Some(File::create(TRACE_FILE_NAME)?);
+        Ok(())
+    }
+
+    pub fn enable_coverage(&mut self) {
+        self.coverage = Some(HashMap::new());
+    }
+
+    pub fn add_breakpoint(&mut self, line: usize, offset: usize) {
+        self.breakpoints.insert((line, offset));
+    }
+
+    pub fn add_data_breakpoint(&mut self, var: String) {
+        self.data_breakpoints.insert(var);
+    }
+
+    pub fn get_coverage(&self) -> Option<&HashMap<usize, usize>> {
+        self.coverage.as_ref()
+    }
+
+    pub fn get_symbol_value(&self, name: &str) -> Option<&SymbolValue> {
+        self.symbols.get(name)
+    }
+
+    pub fn set_symbol_value(&mut self, name: String, value: SymbolValue) {
+        self.symbols.put(name, value);
+    }
+
+    pub fn get_current_line_number(&self) -> usize {
+        self.get_current_line().line_number
+    }
+
+    pub fn get_run_status(&self) -> RunStatus {
+        self.run_status
+    }
+
+    pub fn set_run_status(&mut self, status: RunStatus) {
+        self.run_status = status;
     }
 
     pub fn run(&mut self) -> RunStatus {
         while self.run_status == RunStatus::Run {
-            let current = self.get_current_line();
+            let current_line = self.get_current_line().line_number;
+            let current_offset = self.location.offset;
             
             // Check breakpoints
-            for (line, offset) in &self.breakpoints {
-                if current.line_number == *line && self.location.offset == *offset {
-                    self.run_status = RunStatus::BreakCode;
-                    return self.run_status;
-                }
+            if self.breakpoints.contains(&(current_line, current_offset)) {
+                self.run_status = RunStatus::BreakCode;
+                return self.run_status;
             }
+            
+            // Get current statement before any trace/coverage operations
+            let current_stmt = self.get_current_stmt().clone();
             
             // Write trace
             if let Some(ref mut file) = self.trace_file {
                 if self.location.offset == 0 {
-                    writeln!(file, ">{}", current.source).ok();
+                    writeln!(file, ">{}", self.get_current_line().source).ok();
                 }
-                writeln!(file, "\t{:?}", self.get_current_stmt()).ok();
+                writeln!(file, "\t{:?}", &current_stmt).ok();
             }
             
-            // Update coverage after trace file handling
-            if let Some(ref mut coverage) = self.coverage {
-                coverage.entry(current.line_number).or_default();
+            // Update coverage before executing
+            if let Some(ref mut cov) = self.coverage {
+                cov.entry(current_line)
+                    .and_modify(|count| *count += 1)
+                    .or_insert(1);
             }
             
             // Execute statement
-            match self.execute_statement(self.get_current_stmt()) {
+            match self.execute_statement(&current_stmt) {
                 Ok(()) => {
-                    // Update coverage
-                    if let Some(ref mut coverage) = self.coverage {
-                        coverage.entry(current.line_number)
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                    }
-                    
-                    // Move to next statement
                     self.advance_location();
                 }
                 Err(err) => {
@@ -136,16 +172,16 @@ impl Interpreter {
 
     fn execute_statement(&mut self, stmt: &Statement) -> Result<(), BasicError> {
         match stmt {
-            Statement::Let { var, value } => {
-                let result = self.evaluate_expression(value)?;
+            Statement::Let { var, expr } => {
+                let result = self.evaluate_expression(expr)?;
                 self.put_symbol(var.clone(), result);
                 Ok(())
             }
-            Statement::Print { expressions } => {
-                for (i, expr) in expressions.iter().enumerate() {
+            Statement::Print { exprs } => {
+                for (i, expr) in exprs.iter().enumerate() {
                     let value = self.evaluate_expression(expr)?;
                     print!("{}", value);
-                    if i < expressions.len() - 1 {
+                    if i < exprs.len() - 1 {
                         print!(" ");
                     }
                 }
@@ -167,17 +203,25 @@ impl Interpreter {
             }
             Statement::If { condition, then_stmt, else_stmt } => {
                 let result = self.evaluate_expression(condition)?;
-                if result == SymbolValue::Number(1.0) {
-                    self.execute_statement(then_stmt)?;
-                } else if let Some(stmt) = else_stmt {
-                    self.execute_statement(stmt)?;
+                match result {
+                    SymbolValue::Number(n) => {
+                        if n != 0.0 {
+                            self.execute_statement(then_stmt)?;
+                        } else if let Some(else_s) = else_stmt {
+                            self.execute_statement(else_s)?;
+                        }
+                    }
+                    _ => return Err(BasicError::Type {
+                        message: "IF condition must evaluate to a number".to_string(),
+                        line_number: None,
+                    }),
                 }
                 Ok(())
             }
             Statement::For { var, start, stop, step } => {
                 let start_value = self.evaluate_expression(start)?;
                 let stop_expr = stop.clone();
-                let step_expr = step.clone().unwrap_or_else(|| Expression::new_number(1.0));
+                let step_expr = step.clone().unwrap_or_else(|| Expression::Number(1.0));
                 
                 // Get numeric values
                 let current = match start_value {
@@ -261,12 +305,10 @@ impl Interpreter {
                         self.put_symbol(var.clone(), SymbolValue::Number(next_value));
                         if let Some(stmt_loc) = for_record.stmt {
                             self.location = stmt_loc;
-                            // Only keep the for_record if we're still looping
-                            self.for_stack.pop();  // Remove the old one
-                            self.for_stack.push(for_record);  // Push the current one back
+                            self.for_stack.pop();
+                            self.for_stack.push(for_record);
                         }
                     } else {
-                        // Loop is done, remove the record
                         self.for_stack.pop();
                     }
                     Ok(())
@@ -278,262 +320,141 @@ impl Interpreter {
                 }
             }
             Statement::Goto { line } => {
-                self.goto_line(line)?;
+                self.goto_line(*line)?;
                 Ok(())
             }
             Statement::Gosub { line } => {
                 self.gosub_stack.push(self.location);
-                self.goto_line(line)?;
+                self.goto_line(*line)?;
                 Ok(())
             }
             Statement::Return => {
                 if let Some(return_loc) = self.gosub_stack.pop() {
                     self.location = return_loc;
-                }
-                Ok(())
-            }
-            Statement::End => {
-                self.run_status = RunStatus::EndOfProgram;
-                Ok(())
-            }
-            Statement::Stop => {
-                self.run_status = RunStatus::BreakCode;
-                Ok(())
-            }
-            Statement::Rem { comment } => {
-                // REM statements are comments, do nothing
-                Ok(())
-            }
-            Statement::Data { values } => {
-                self.data_values.extend(values.iter().map(|v| self.evaluate_expression(v).unwrap()));
-                Ok(())
-            }
-            Statement::Read { var } => {
-                if let Some(value) = self.data_values.get(self.data_pointer) {
-                    self.put_symbol(var.clone(), value.clone());
-                    self.data_pointer += 1;
+                    self.advance_location();
                     Ok(())
                 } else {
                     Err(BasicError::Runtime {
-                        message: "No more data available".to_string(),
+                        message: "RETURN without GOSUB".to_string(),
                         line_number: None,
                     })
                 }
             }
-            Statement::Restore { line } => {
-                self.data_pointer = 0;
-                if let Some(target_line) = line {
-                    for (i, line) in self.program.lines.iter().enumerate() {
-                        if line.line_number >= target_line {
-                            self.data_pointer = 0;
-                            for stmt in &line.statements {
-                                if let Statement::Data { .. } = stmt {
-                                    break;
-                                }
-                            }
-                            break;
-                        }
+            Statement::End => {
+                self.run_status = RunStatus::End;
+                Ok(())
+            }
+            Statement::Stop => {
+                self.run_status = RunStatus::Stop;
+                Ok(())
+            }
+            Statement::Rem { .. } => Ok(()),
+            Statement::Data { values } => {
+                self.data_values.extend(values.iter().cloned());
+                Ok(())
+            }
+            Statement::Read { vars } => {
+                for var in vars {
+                    if self.data_pointer >= self.data_values.len() {
+                        return Err(BasicError::Runtime {
+                            message: "Out of DATA values".to_string(),
+                            line_number: None,
+                        });
                     }
+                    let value = self.data_values[self.data_pointer].clone();
+                    self.put_symbol(var.clone(), value);
+                    self.data_pointer += 1;
                 }
+                Ok(())
+            }
+            Statement::Restore => {
+                self.data_pointer = 0;
                 Ok(())
             }
             Statement::Dim { arrays } => {
                 for array in arrays {
                     if array.dimensions.is_empty() {
-                        return Err(BasicError::Syntax {
+                        return Err(BasicError::Runtime {
                             message: format!("Array '{}' requires at least one dimension", array.name),
                             line_number: None,
                         });
                     }
-
-                    self.put_symbol(array.name.clone(), SymbolValue::Array(array.dimensions.clone()));
+                    self.symbols.create_array(array.name.clone(), array.dimensions.clone())?;
                 }
+                Ok(())
+            }
+            Statement::OnGoto { expr, line_numbers } => {
+                let value = match self.evaluate_expression(expr)? {
+                    SymbolValue::Number(n) if n >= 1.0 && n.fract() == 0.0 => n as usize,
+                    _ => return Err(BasicError::Runtime {
+                        message: "ON index must be a positive integer".to_string(),
+                        line_number: None,
+                    })
+                };
+                
+                if value <= line_numbers.len() {
+                    self.goto_line(line_numbers[value - 1])?;
+                }
+                Ok(())
+            }
+            Statement::Def { name, params, expr } => {
+                self.internal_symbols.define_function(name.clone(), params.clone(), expr.clone())?;
                 Ok(())
             }
         }
     }
 
     fn evaluate_expression(&mut self, expr: &Expression) -> Result<SymbolValue, BasicError> {
-        match &expr.expr_type {
-            ExpressionType::Number(n) => Ok(SymbolValue::Number(*n)),
-            ExpressionType::String(s) => Ok(SymbolValue::String(s.clone())),
-            ExpressionType::Variable(name) => self.get_symbol(name),
-            ExpressionType::Array { name, indices } => {
-                let mut evaluated_indices = Vec::new();
-                for idx in indices {
-                    match self.evaluate_expression(idx)? {
-                        SymbolValue::Number(n) => evaluated_indices.push(n as usize),
-                        _ => return Err(BasicError::Runtime {
-                            message: "Array index must be numeric".to_string(),
+        match expr {
+            Expression::Number(n) => Ok(SymbolValue::Number(*n)),
+            Expression::String(s) => Ok(SymbolValue::String(s.clone())),
+            Expression::Variable(name) => self.get_symbol(name),
+            Expression::Array { name, indices } => {
+                let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
+                    .map(|expr| match self.evaluate_expression(expr)? {
+                        SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                        _ => Err(BasicError::Runtime {
+                            message: "Array index must be a non-negative integer".to_string(),
                             line_number: None,
-                        }),
-                    }
-                }
+                        })
+                    })
+                    .collect();
                 
-                match self.get_symbol(name)? {
-                    SymbolValue::Array(arr) => {
-                        let mut current = &arr;
-                        for &i in &evaluated_indices[..evaluated_indices.len()-1] {
-                            if let Some(SymbolValue::Array(next)) = current.get(i) {
-                                current = next;
-                            } else {
-                                return Err(BasicError::Runtime {
-                                    message: "Invalid array index".to_string(),
-                                    line_number: None,
-                                });
-                            }
-                        }
-                        
-                        if let Some(last) = index.last() {
-                            current.get(*last).cloned().ok_or_else(|| BasicError::Runtime {
-                                message: "Array index out of bounds".to_string(),
-                                line_number: None,
-                            })
-                        } else {
-                            Err(BasicError::Runtime {
-                                message: "Empty array index".to_string(),
-                                line_number: None,
-                            })
-                        }
-                    }
-                    _ => Err(BasicError::Runtime {
-                        message: format!("{} is not an array", name),
-                        line_number: None,
-                    }),
-                }
-            }
-            ExpressionType::BinaryOp { op, left, right } => {
-                let left = self.evaluate_expression(left)?;
-                let right = self.evaluate_expression(right)?;
-                
-                match (left, right) {
-                    (SymbolValue::Number(l), SymbolValue::Number(r)) => {
-                        let result = match op.as_str() {
-                            "+" => l + r,
-                            "-" => l - r,
-                            "*" => l * r,
-                            "/" => {
-                                if r == 0.0 {
-                                    return Err(BasicError::Runtime {
-                                        message: "Division by zero".to_string(),
-                                        line_number: None,
-                                    });
-                                }
-                                l / r
-                            }
-                            "^" => l.powf(r),
-                            "=" => if l == r { 1.0 } else { 0.0 },
-                            "<>" => if l != r { 1.0 } else { 0.0 },
-                            "<" => if l < r { 1.0 } else { 0.0 },
-                            "<=" => if l <= r { 1.0 } else { 0.0 },
-                            ">" => if l > r { 1.0 } else { 0.0 },
-                            ">=" => if l >= r { 1.0 } else { 0.0 },
-                            "AND" => if l != 0.0 && r != 0.0 { 1.0 } else { 0.0 },
-                            "OR" => if l != 0.0 || r != 0.0 { 1.0 } else { 0.0 },
-                            _ => return Err(BasicError::Runtime {
-                                message: format!("Unknown operator: {}", op),
-                                line_number: None,
-                            }),
-                        };
-                        Ok(SymbolValue::Number(result))
-                    }
-                    (SymbolValue::String(l), SymbolValue::String(r)) => {
-                        let result = match op.as_str() {
-                            "+" => l + &r,
-                            "=" => if l == r { 1.0 } else { 0.0 },
-                            "<>" => if l != r { 1.0 } else { 0.0 },
-                            "<" => if l < r { 1.0 } else { 0.0 },
-                            "<=" => if l <= r { 1.0 } else { 0.0 },
-                            ">" => if l > r { 1.0 } else { 0.0 },
-                            ">=" => if l >= r { 1.0 } else { 0.0 },
-                            _ => return Err(BasicError::Runtime {
-                                message: format!("Invalid operator {} for strings", op),
-                                line_number: None,
-                            }),
-                        };
-                        match op.as_str() {
-                            "+" => Ok(SymbolValue::String(result)),
-                            _ => Ok(SymbolValue::Number(result)),
-                        }
-                    }
-                    _ => Err(BasicError::Runtime {
-                        message: "Type mismatch in expression".to_string(),
-                        line_number: None,
-                    }),
-                }
-            }
-            ExpressionType::UnaryOp { op, expr } => {
-                let value = self.evaluate_expression(expr)?;
-                match value {
-                    SymbolValue::Number(n) => {
-                        let result = match op.as_str() {
-                            "-" => -n,
-                            "NOT" => if n == 0.0 { 1.0 } else { 0.0 },
-                            _ => return Err(BasicError::Runtime {
-                                message: format!("Unknown operator: {}", op),
-                                line_number: None,
-                            }),
-                        };
-                        Ok(SymbolValue::Number(result))
-                    }
-                    _ => Err(BasicError::Runtime {
-                        message: format!("Invalid operand for {}", op),
-                        line_number: None,
-                    }),
-                }
-            }
-            ExpressionType::FunctionCall { name, args } => {
+                let indices = idx_values?;
+                self.symbols.get_array_element(name, &indices)
+            },
+            Expression::Function { name, args } => {
                 let mut evaluated_args = Vec::new();
                 for arg in args {
-                    let value = self.evaluate_expression(arg)?;
-                    match value {
-                        SymbolValue::Number(n) => evaluated_args.push(n),
-                        _ => return Err(BasicError::Runtime {
-                            message: "Function arguments must be numeric".to_string(),
-                            line_number: None,
-                        }),
-                    }
+                    evaluated_args.push(self.evaluate_expression(arg)?);
                 }
                 
-                match name.as_str() {
-                    "ABS" => {
-                        if evaluated_args.len() != 1 {
-                            return Err(BasicError::Runtime {
-                                message: "ABS requires 1 argument".to_string(),
-                                line_number: None,
-                            });
-                        }
-                        Ok(SymbolValue::Number(evaluated_args[0].abs()))
-                    }
-                    "RND" => {
-                        if evaluated_args.len() != 1 {
-                            return Err(BasicError::Runtime {
-                                message: "RND requires 1 argument".to_string(),
-                                line_number: None,
-                            });
-                        }
-                        let mut rng = rand::thread_rng();
-                        Ok(SymbolValue::Number(rng.gen()))
-                    }
-                    // Add more functions here...
-                    _ => Err(BasicError::Runtime {
-                        message: format!("Unknown function: {}", name),
-                        line_number: None,
-                    }),
+                if let Some(func) = PredefinedFunctions::get(name) {
+                    func.call(&evaluated_args)
+                } else {
+                    self.internal_symbols.call_function(name, &evaluated_args)
                 }
             }
         }
     }
 
     fn get_symbol(&self, name: &str) -> Result<SymbolValue, BasicError> {
-        self.symbols.get(name).ok_or_else(|| BasicError::Runtime {
-            message: format!("Undefined variable: {}", name),
-            line_number: None,
-        })
+        // Try current scope first, then parent scopes
+        if let Some(value) = self.symbols.get(name) {
+            Ok(value.clone())
+        } else if let Some(value) = self.internal_symbols.get(name) {
+            Ok(value.clone())
+        } else {
+            Err(BasicError::Runtime {
+                message: format!("Undefined variable: {}", name),
+                line_number: None,
+            })
+        }
     }
 
     fn put_symbol(&mut self, name: String, value: SymbolValue) {
-        self.symbols.put_symbol(name, value);
+        // Always put in current scope
+        self.symbols.put(name, value);
         if self.data_breakpoints.contains(&name) {
             self.run_status = RunStatus::BreakData;
         }
@@ -541,7 +462,10 @@ impl Interpreter {
 
     fn goto_line(&mut self, line_number: usize) -> Result<(), BasicError> {
         if let Some(&index) = self.line_number_map.get(&line_number) {
-            self.location = ControlLocation { index, offset: 0 };
+            self.location = ControlLocation {
+                index,
+                offset: 0,
+            };
             Ok(())
         } else {
             Err(BasicError::Runtime {
@@ -561,23 +485,17 @@ impl Interpreter {
 
     fn advance_location(&mut self) {
         let current_line = self.get_current_line();
-        
-        // After REM, skip to next line
-        if let StatementType::Rem { .. } = self.get_current_stmt().stmt_type {
-            self.location.index += 1;
-            self.location.offset = 0;
-            return;
-        }
-        
-        self.location.offset += 1;
-        if current_offset >= current_line.statements.len() - 1 {
-            self.location.index += 1;
-            self.location.offset = 0;
-        }
-        
-        // Check if we've reached the end
-        if self.location.index >= self.program.lines.len() {
-            self.run_status = RunStatus::EndOfProgram;
+        if self.location.offset + 1 < current_line.statements.len() {
+            // Move to next statement in current line
+            self.location.offset += 1;
+        } else {
+            // Move to first statement of next line
+            if self.location.index + 1 < self.program.lines.len() {
+                self.location.index += 1;
+                self.location.offset = 0;
+            } else {
+                self.run_status = RunStatus::End;
+            }
         }
     }
 }
