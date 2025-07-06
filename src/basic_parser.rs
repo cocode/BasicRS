@@ -1,3 +1,5 @@
+use crate::basic_types::{ArrayDecl};
+
 use crate::basic_types::{
     Token, BasicError, Statement, Expression,
     Program
@@ -234,23 +236,37 @@ impl Parser {
             }
             Some(Token::Dim) => {
                 self.advance();
-                let var = self.parse_identifier()?;
-                self.consume(&Token::LeftParen, "Expected '(' after array name")?;
-                
-                let mut dimensions = Vec::new();
-                while !self.check(&Token::RightParen) {
-                    let dim = self.parse_number()? as usize;
-                    dimensions.push(dim);
-                    
+
+                let mut arrays = Vec::new();
+
+                loop {
+                    let var = self.parse_identifier()?;
+                    self.consume(&Token::LeftParen, "Expected '(' after array name")?;
+
+                    let mut dimensions = Vec::new();
+                    while !self.check(&Token::RightParen) {
+                        let dim = self.parse_number()? as usize;
+                        dimensions.push(dim);
+
+                        if self.check(&Token::Comma) {
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    self.consume(&Token::RightParen, "Expected ')' after dimensions")?;
+
+                    arrays.push(ArrayDecl { name: var, dimensions });
+
                     if self.check(&Token::Comma) {
                         self.advance();
                     } else {
                         break;
                     }
                 }
-                
-                self.consume(&Token::RightParen, "Expected ')' after dimensions")?;
-                Ok(Statement::Dim { var, dimensions })
+
+                Ok(Statement::Dim { arrays })
             }
             Some(token) => Err(BasicError::Syntax {
                 message: format!("Unexpected token: {}", token),
@@ -589,6 +605,7 @@ mod tests {
         if let Statement::Let { var, value } = &program.lines[0].statements[0] {
             assert_eq!(var, "X");
             // assert_eq!(value, "1"); # need to verify the expression
+            // TODO value
             // Optionally check value...
         } else {
             panic!("Expected LET statement");
