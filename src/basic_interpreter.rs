@@ -76,7 +76,9 @@ impl Interpreter {
             breakpoints: HashSet::new(),
             data_breakpoints: HashSet::new(),
             line_number_map,
-        }
+        };
+        
+        interpreter
     }
 
     pub fn run(&mut self) -> RunStatus {
@@ -174,23 +176,28 @@ impl Interpreter {
             }
             Statement::For { var, start, stop, step } => {
                 let start_value = self.evaluate_expression(start)?;
-                let stop_value = self.evaluate_expression(stop)?;
-                let step_value = match step {
-                    Some(expr) => self.evaluate_expression(expr)?,
-                    None => SymbolValue::Number(1.0),
+                let stop_expr = stop.clone();
+                let step_expr = step.clone().unwrap_or_else(|| Expression::new_number(1.0));
+                
+                // Get numeric values
+                let current = match start_value {
+                    SymbolValue::Number(n) => n,
+                    _ => return Err(BasicError::Runtime {
+                        message: "FOR loop start value must be a number".to_string(),
+                        line_number: None,
+                    }),
                 };
                 
-                self.for_stack.push(ForRecord {
-                    var: var.clone(),
-                    stop: stop.clone(),
-                    step: step.clone().unwrap_or_else(|| Expression::new_number(1.0)),
-                    stmt: Some(self.location),
-                });
+                let stop_value = self.evaluate_expression(&stop_expr)?;
+                let stop = match stop_value {
+                    SymbolValue::Number(n) => n,
+                    _ => return Err(BasicError::Runtime {
+                        message: "FOR loop stop value must be a number".to_string(),
+                        line_number: None,
+                    }),
+                };
                 
-                self.put_symbol(var.clone(), start_value);
-                
-                let current = start_value;
-                let stop = stop_value;
+                let step_value = self.evaluate_expression(&step_expr)?;
                 let step = match step_value {
                     SymbolValue::Number(n) => n,
                     _ => return Err(BasicError::Runtime {
@@ -199,27 +206,51 @@ impl Interpreter {
                     }),
                 };
                 
+                self.for_stack.push(ForRecord {
+                    var: var.clone(),
+                    stop: stop_expr,
+                    step: step_expr,
+                    stmt: Some(self.location),
+                });
+                
+                self.put_symbol(var.clone(), SymbolValue::Number(current));
+                
                 if (step >= 0.0 && current > stop) || (step < 0.0 && current < stop) {
                     if let Some(stmt_loc) = self.for_stack.last().unwrap().stmt {
                         self.location = stmt_loc;
-                    } else {
-                        self.for_stack.pop();
                     }
+                    self.for_stack.pop();
                 }
                 Ok(())
             }
             Statement::Next { var } => {
-                if let Some(for_record) = self.for_stack.pop() {
-                    let current = self.get_symbol(var)?;
-                    let step = self.evaluate_expression(&for_record.step)?;
-                    let stop = self.evaluate_expression(&for_record.stop)?;
-                    
-                    let (current, step, stop) = match (current, step, stop) {
-                        (SymbolValue::Number(current), SymbolValue::Number(step), SymbolValue::Number(stop)) => {
-                            (current, step, stop)
-                        }
+                if let Some(for_record) = self.for_stack.last().cloned() {
+                    // Get current value
+                    let current_value = self.get_symbol(var)?;
+                    let current = match current_value {
+                        SymbolValue::Number(n) => n,
                         _ => return Err(BasicError::Runtime {
-                            message: "FOR loop values must be numeric".to_string(),
+                            message: "FOR loop variable must be numeric".to_string(),
+                            line_number: None,
+                        }),
+                    };
+
+                    // Get step value
+                    let step_value = self.evaluate_expression(&for_record.step)?;
+                    let step = match step_value {
+                        SymbolValue::Number(n) => n,
+                        _ => return Err(BasicError::Runtime {
+                            message: "FOR loop step must be numeric".to_string(),
+                            line_number: None,
+                        }),
+                    };
+
+                    // Get stop value
+                    let stop_value = self.evaluate_expression(&for_record.stop)?;
+                    let stop = match stop_value {
+                        SymbolValue::Number(n) => n,
+                        _ => return Err(BasicError::Runtime {
+                            message: "FOR loop stop value must be numeric".to_string(),
                             line_number: None,
                         }),
                     };
@@ -230,8 +261,13 @@ impl Interpreter {
                         self.put_symbol(var.clone(), SymbolValue::Number(next_value));
                         if let Some(stmt_loc) = for_record.stmt {
                             self.location = stmt_loc;
-                            self.for_stack.push(for_record);
+                            // Only keep the for_record if we're still looping
+                            self.for_stack.pop();  // Remove the old one
+                            self.for_stack.push(for_record);  // Push the current one back
                         }
+                    } else {
+                        // Loop is done, remove the record
+                        self.for_stack.pop();
                     }
                     Ok(())
                 } else {
