@@ -192,7 +192,7 @@ impl Interpreter {
                     SymbolValue::Number(n) => n,
                     _ => return Err(BasicError::Runtime {
                         message: "FOR loop step must be a number".to_string(),
-                        line_number: stmt.get_line_number(),
+                        line_number: None,
                     }),
                 };
                 
@@ -217,7 +217,7 @@ impl Interpreter {
                         }
                         _ => return Err(BasicError::Runtime {
                             message: "FOR loop values must be numeric".to_string(),
-                            line_number: stmt.get_line_number(),
+                            line_number: None,
                         }),
                     };
                     
@@ -234,7 +234,7 @@ impl Interpreter {
                 } else {
                     Err(BasicError::Runtime {
                         message: "NEXT without matching FOR".to_string(),
-                        line_number: stmt.get_line_number(),
+                        line_number: None,
                     })
                 }
             }
@@ -277,7 +277,7 @@ impl Interpreter {
                 } else {
                     Err(BasicError::Runtime {
                         message: "No more data available".to_string(),
-                        line_number: stmt.get_line_number(),
+                        line_number: None,
                     })
                 }
             }
@@ -302,7 +302,7 @@ impl Interpreter {
                 if dimensions.is_empty() {
                     return Err(BasicError::Syntax {
                         message: "DIM statement requires dimensions".to_string(),
-                        line_number: stmt.get_line_number(),
+                        line_number: None,
                     });
                 }
                 
@@ -321,7 +321,6 @@ impl Interpreter {
                         );
                     } else {
                         expr = Expression::new_binary_op(
-                            "(".to_string(),
                             expr,
                             index,
                         );
@@ -346,7 +345,7 @@ impl Interpreter {
                         SymbolValue::Number(n) => evaluated_indices.push(n as usize),
                         _ => return Err(BasicError::Runtime {
                             message: "Array index must be numeric".to_string(),
-                            line_number: expr.line_number,
+                            line_number: None,
                         }),
                     }
                 }
@@ -360,7 +359,7 @@ impl Interpreter {
                             } else {
                                 return Err(BasicError::Runtime {
                                     message: "Invalid array index".to_string(),
-                                    line_number: expr.line_number,
+                                    line_number: None,
                                 });
                             }
                         }
@@ -368,18 +367,18 @@ impl Interpreter {
                         if let Some(last) = index.last() {
                             current.get(*last).cloned().ok_or_else(|| BasicError::Runtime {
                                 message: "Array index out of bounds".to_string(),
-                                line_number: expr.line_number,
+                                line_number: None,
                             })
                         } else {
                             Err(BasicError::Runtime {
                                 message: "Empty array index".to_string(),
-                                line_number: expr.line_number,
+                                line_number: None,
                             })
                         }
                     }
                     _ => Err(BasicError::Runtime {
                         message: format!("{} is not an array", name),
-                        line_number: expr.line_number,
+                        line_number: None,
                     }),
                 }
             }
@@ -397,7 +396,7 @@ impl Interpreter {
                                 if r == 0.0 {
                                     return Err(BasicError::Runtime {
                                         message: "Division by zero".to_string(),
-                                        line_number: expr.line_number,
+                                        line_number: None,
                                     });
                                 }
                                 l / r
@@ -413,7 +412,7 @@ impl Interpreter {
                             "OR" => if l != 0.0 || r != 0.0 { 1.0 } else { 0.0 },
                             _ => return Err(BasicError::Runtime {
                                 message: format!("Unknown operator: {}", op),
-                                line_number: expr.line_number,
+                                line_number: None,
                             }),
                         };
                         Ok(SymbolValue::Number(result))
@@ -429,7 +428,7 @@ impl Interpreter {
                             ">=" => if l >= r { 1.0 } else { 0.0 },
                             _ => return Err(BasicError::Runtime {
                                 message: format!("Invalid operator {} for strings", op),
-                                line_number: expr.line_number,
+                                line_number: None,
                             }),
                         };
                         match op.as_str() {
@@ -439,7 +438,7 @@ impl Interpreter {
                     }
                     _ => Err(BasicError::Runtime {
                         message: "Type mismatch in expression".to_string(),
-                        line_number: expr.line_number,
+                        line_number: None,
                     }),
                 }
             }
@@ -452,14 +451,14 @@ impl Interpreter {
                             "NOT" => if n == 0.0 { 1.0 } else { 0.0 },
                             _ => return Err(BasicError::Runtime {
                                 message: format!("Unknown operator: {}", op),
-                                line_number: expr.line_number,
+                                line_number: None,
                             }),
                         };
                         Ok(SymbolValue::Number(result))
                     }
                     _ => Err(BasicError::Runtime {
                         message: format!("Invalid operand for {}", op),
-                        line_number: expr.line_number,
+                        line_number: None,
                     }),
                 }
             }
@@ -471,7 +470,7 @@ impl Interpreter {
                         SymbolValue::Number(n) => evaluated_args.push(n),
                         _ => return Err(BasicError::Runtime {
                             message: "Function arguments must be numeric".to_string(),
-                            line_number: expr.line_number,
+                            line_number: None,
                         }),
                     }
                 }
@@ -481,7 +480,7 @@ impl Interpreter {
                         if evaluated_args.len() != 1 {
                             return Err(BasicError::Runtime {
                                 message: "ABS requires 1 argument".to_string(),
-                                line_number: expr.line_number,
+                                line_number: None,
                             });
                         }
                         Ok(SymbolValue::Number(evaluated_args[0].abs()))
@@ -490,7 +489,7 @@ impl Interpreter {
                         if evaluated_args.len() != 1 {
                             return Err(BasicError::Runtime {
                                 message: "RND requires 1 argument".to_string(),
-                                line_number: expr.line_number,
+                                line_number: None,
                             });
                         }
                         let mut rng = rand::thread_rng();
@@ -499,7 +498,7 @@ impl Interpreter {
                     // Add more functions here...
                     _ => Err(BasicError::Runtime {
                         message: format!("Unknown function: {}", name),
-                        line_number: expr.line_number,
+                        line_number: None,
                     }),
                 }
             }
@@ -507,11 +506,10 @@ impl Interpreter {
     }
 
     fn get_symbol(&self, name: &str) -> Result<SymbolValue, BasicError> {
-        self.symbols.get_symbol(name)
-            .ok_or_else(|| BasicError::Runtime {
-                message: format!("Undefined variable: {}", name),
-                line_number: Some(self.get_current_line().line_number),
-            })
+        self.symbols.get(name).ok_or_else(|| BasicError::Runtime {
+            message: format!("Undefined variable: {}", name),
+            line_number: None,
+        })
     }
 
     fn put_symbol(&mut self, name: String, value: SymbolValue) {
@@ -523,15 +521,12 @@ impl Interpreter {
 
     fn goto_line(&mut self, line_number: usize) -> Result<(), BasicError> {
         if let Some(&index) = self.line_number_map.get(&line_number) {
-            self.location = ControlLocation {
-                index,
-                offset: 0,
-            };
+            self.location = ControlLocation { index, offset: 0 };
             Ok(())
         } else {
             Err(BasicError::Runtime {
                 message: format!("Line number {} not found", line_number),
-                line_number: Some(line_number),
+                line_number: None,
             })
         }
     }
