@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use crate::basic_types::{BasicError, Token};
 use lazy_static::lazy_static;
-use rand::Rng;
-use crate::basic_types::{Token, BasicError};
 use rand::prelude::*;
+use rand::Rng;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub enum BasicFunction {
@@ -21,7 +21,11 @@ pub enum BasicFunction {
 impl BasicFunction {
     pub fn call(&self, args: Vec<Token>) -> Result<Token, BasicError> {
         match self {
-            BasicFunction::Number { lambda, arg_count, name } => {
+            BasicFunction::Number {
+                lambda,
+                arg_count,
+                name,
+            } => {
                 if args.len() != *arg_count {
                     return Err(BasicError::Syntax {
                         message: format!("Wrong number of arguments for {}", name),
@@ -34,11 +38,15 @@ impl BasicFunction {
                     .map(|t| t.token().unwrap_or("").to_string())
                     .collect();
 
-                let result = lambda(&arg_strings)?;  // Propagate error from lambda
+                let result = lambda(&arg_strings)?; // Propagate error from lambda
                 Ok(Token::new_number(&result))
             }
 
-            BasicFunction::String { lambda, arg_count, name } => {
+            BasicFunction::String {
+                lambda,
+                arg_count,
+                name,
+            } => {
                 if args.len() != *arg_count {
                     return Err(BasicError::Syntax {
                         message: format!("Wrong number of arguments for {}", name),
@@ -50,7 +58,7 @@ impl BasicFunction {
                     .into_iter()
                     .map(|t| t.token().unwrap_or("").to_string())
                     .collect();
-                let result = lambda(&arg_strings)?;  // Propagate error from lambda
+                let result = lambda(&arg_strings)?; // Propagate error from lambda
                 Ok(Token::new_string(&result))
             }
         }
@@ -219,7 +227,10 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
                 let s = args[0].trim_matches('"');
                 let start = args[1].parse::<usize>().unwrap_or(1).saturating_sub(1);
                 let len = args[2].parse::<usize>().unwrap_or(s.len());
-                format!("\"{}\"", s.chars().skip(start).take(len).collect::<String>())
+                format!(
+                    "\"{}\"",
+                    s.chars().skip(start).take(len).collect::<String>()
+                )
             },
             arg_count: 3,
         }),
@@ -228,7 +239,16 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
             lambda: |args| {
                 let s = args[0].trim_matches('"');
                 let n = args[1].parse::<usize>().unwrap_or(0);
-                format!("\"{}\"", s.chars().rev().take(n).collect::<String>().chars().rev().collect::<String>())
+                format!(
+                    "\"{}\"",
+                    s.chars()
+                        .rev()
+                        .take(n)
+                        .collect::<String>()
+                        .chars()
+                        .rev()
+                        .collect::<String>()
+                )
             },
             arg_count: 2,
         }),
@@ -252,9 +272,14 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
             name: "SGN".to_string(),
             lambda: |args| {
                 let value = args[0].parse::<f64>().unwrap_or(0.0);
-                if value > 0.0 { "1" }
-                else if value < 0.0 { "-1" }
-                else { "0" }.to_string()
+                if value > 0.0 {
+                    "1"
+                } else if value < 0.0 {
+                    "-1"
+                } else {
+                    "0"
+                }
+                .to_string()
             },
             arg_count: 1,
         }),
@@ -352,7 +377,10 @@ mod tests {
         let left_fn = get_function("LEFT$").unwrap();
         match left_fn {
             BasicFunction::String { lambda, .. } => {
-                assert_eq!(lambda(&vec!["\"Hello\"".to_string(), "2".to_string()]), "\"He\"");
+                assert_eq!(
+                    lambda(&vec!["\"Hello\"".to_string(), "2".to_string()]),
+                    "\"He\""
+                );
             }
             _ => panic!("Expected string function"),
         }
@@ -374,7 +402,14 @@ mod tests {
         let mid_fn = get_function("MID$").unwrap();
         match mid_fn {
             BasicFunction::String { lambda, .. } => {
-                assert_eq!(lambda(&vec!["\"Hello\"".to_string(), "2".to_string(), "2".to_string()]), "\"el\"");
+                assert_eq!(
+                    lambda(&vec![
+                        "\"Hello\"".to_string(),
+                        "2".to_string(),
+                        "2".to_string()
+                    ]),
+                    "\"el\""
+                );
             }
             _ => panic!("Expected string function"),
         }
@@ -385,7 +420,10 @@ mod tests {
         let right_fn = get_function("RIGHT$").unwrap();
         match right_fn {
             BasicFunction::String { lambda, .. } => {
-                assert_eq!(lambda(&vec!["\"Hello\"".to_string(), "2".to_string()]), "\"lo\"");
+                assert_eq!(
+                    lambda(&vec!["\"Hello\"".to_string(), "2".to_string()]),
+                    "\"lo\""
+                );
             }
             _ => panic!("Expected string function"),
         }
