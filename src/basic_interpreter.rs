@@ -114,7 +114,7 @@ impl Interpreter {
     }
 
     pub fn get_run_status(&self) -> RunStatus {
-        self.run_status
+        self.run_status.clone()
     }
 
     pub fn set_run_status(&mut self, status: RunStatus) {
@@ -123,22 +123,22 @@ impl Interpreter {
 
     pub fn run(&mut self) -> RunStatus {
         while self.run_status == RunStatus::Run {
-            let current_line = self.get_current_line().line_number;
+            // Get all the values we need before any mutable operations
+            let current_line = self.get_current_line_number();
             let current_offset = self.location.offset;
+            let current_stmt = self.get_current_stmt().clone();
+            let current_source = self.get_current_line().source.clone();
             
             // Check breakpoints
             if self.breakpoints.contains(&(current_line, current_offset)) {
                 self.run_status = RunStatus::BreakCode;
-                return self.run_status;
+                return self.run_status.clone();
             }
-            
-            // Get current statement before any trace/coverage operations
-            let current_stmt = self.get_current_stmt().clone();
             
             // Write trace
             if let Some(ref mut file) = self.trace_file {
                 if self.location.offset == 0 {
-                    writeln!(file, ">{}", self.get_current_line().source).ok();
+                    writeln!(file, ">{}", current_source).ok();
                 }
                 writeln!(file, "\t{:?}", &current_stmt).ok();
             }
@@ -162,12 +162,12 @@ impl Interpreter {
                         BasicError::Internal { .. } => RunStatus::EndErrorInternal,
                         BasicError::Type { .. } => RunStatus::EndErrorType,
                     };
-                    return self.run_status;
+                    return self.run_status.clone();
                 }
             }
         }
         
-        self.run_status
+        self.run_status.clone()
     }
 
     fn execute_statement(&mut self, stmt: &Statement) -> Result<(), BasicError> {
@@ -221,7 +221,10 @@ impl Interpreter {
             Statement::For { var, start, stop, step } => {
                 let start_value = self.evaluate_expression(start)?;
                 let stop_expr = stop.clone();
-                let step_expr = step.clone().unwrap_or_else(|| Expression::Number(1.0));
+                let step_expr = step.clone().unwrap_or_else(|| Expression {
+                    expr_type: ExpressionType::Number(1.0),
+                    line_number: None,
+                });
                 
                 // Get numeric values
                 let current = match start_value {
@@ -341,7 +344,7 @@ impl Interpreter {
                 }
             }
             Statement::End => {
-                self.run_status = RunStatus::End;
+                self.run_status = RunStatus::EndNormal;
                 Ok(())
             }
             Statement::Stop => {
@@ -350,7 +353,13 @@ impl Interpreter {
             }
             Statement::Rem { .. } => Ok(()),
             Statement::Data { values } => {
-                self.data_values.extend(values.iter().cloned());
+                // Evaluate each expression to get SymbolValues
+                let mut evaluated_values = Vec::new();
+                for expr in values {
+                    let value = self.evaluate_expression(expr)?;
+                    evaluated_values.push(value);
+                }
+                self.data_values.extend(evaluated_values);
                 Ok(())
             }
             Statement::Read { vars } => {
@@ -379,7 +388,11 @@ impl Interpreter {
                             line_number: None,
                         });
                     }
-                    self.symbols.create_array(array.name.clone(), array.dimensions.clone())?;
+                    // Calculate total size
+                    let total_size: usize = array.dimensions.iter().product();
+                    // Create array with default values
+                    let values = vec![SymbolValue::Number(0.0); total_size];
+                    self.symbols.put_symbol(array.name.clone(), SymbolValue::Array(values));
                 }
                 Ok(())
             }
@@ -398,43 +411,188 @@ impl Interpreter {
                 Ok(())
             }
             Statement::Def { name, params, expr } => {
-                self.internal_symbols.define_function(name.clone(), params.clone(), expr.clone())?;
+                // Store function definition as a Function symbol value
+                self.internal_symbols.put_symbol(name.clone(), SymbolValue::Function(Box::new(expr.clone())));
                 Ok(())
             }
         }
     }
 
     fn evaluate_expression(&mut self, expr: &Expression) -> Result<SymbolValue, BasicError> {
-        match expr {
-            Expression::Number(n) => Ok(SymbolValue::Number(*n)),
-            Expression::String(s) => Ok(SymbolValue::String(s.clone())),
-            Expression::Variable(name) => self.get_symbol(name),
-            Expression::Array { name, indices } => {
+        match &expr.expr_type {
+            ExpressionType::Number(n) => Ok(SymbolValue::Number(*n)),
+            ExpressionType::String(s) => Ok(SymbolValue::String(s.clone())),
+            ExpressionType::Variable(name) => self.get_symbol(name),
+            ExpressionType::Array { name, indices } => {
                 let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
-                    .map(|expr| match self.evaluate_expression(expr)? {
-                        SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
-                        _ => Err(BasicError::Runtime {
-                            message: "Array index must be a non-negative integer".to_string(),
-                            line_number: None,
-                        })
+                    .map(|idx| {
+                        match self.evaluate_expression(idx)? {
+                            SymbolValue::Number(n) => Ok(n as usize),
+                            _ => Err(BasicError::Type {
+                                message: "Array index must be a number".to_string(),
+                                line_number: None,
+                            }),
+                        }
                     })
                     .collect();
                 
                 let indices = idx_values?;
-                self.symbols.get_array_element(name, &indices)
+                match self.get_symbol(name)? {
+                    SymbolValue::Array(values) => {
+                        // Calculate linear index from multi-dimensional indices
+                        let mut linear_index = 0;
+                        let mut multiplier = 1;
+                        for &idx in indices.iter().rev() {
+                            linear_index += idx * multiplier;
+                            multiplier *= values.len();
+                        }
+                        
+                        if linear_index >= values.len() {
+                            return Err(BasicError::Runtime {
+                                message: format!("Array index out of bounds: {}", linear_index),
+                                line_number: None,
+                            });
+                        }
+                        
+                        Ok(values[linear_index].clone())
+                    },
+                    _ => Err(BasicError::Type {
+                        message: format!("{} is not an array", name),
+                        line_number: None,
+                    }),
+                }
             },
-            Expression::Function { name, args } => {
+            ExpressionType::BinaryOp { op, left, right } => {
+                let left_val = self.evaluate_expression(left)?;
+                let right_val = self.evaluate_expression(right)?;
+                
+                // Handle binary operations
+                match op.as_str() {
+                    "+" => match (left_val, right_val) {
+                        (SymbolValue::Number(a), SymbolValue::Number(b)) => Ok(SymbolValue::Number(a + b)),
+                        (SymbolValue::String(a), SymbolValue::String(b)) => Ok(SymbolValue::String(format!("{}{}", a, b))),
+                        _ => Err(BasicError::Type {
+                            message: "Type mismatch in addition".to_string(),
+                            line_number: None,
+                        }),
+                    },
+                    "-" => match (left_val, right_val) {
+                        (SymbolValue::Number(a), SymbolValue::Number(b)) => Ok(SymbolValue::Number(a - b)),
+                        _ => Err(BasicError::Type {
+                            message: "Can only subtract numbers".to_string(),
+                            line_number: None,
+                        }),
+                    },
+                    "*" => match (left_val, right_val) {
+                        (SymbolValue::Number(a), SymbolValue::Number(b)) => Ok(SymbolValue::Number(a * b)),
+                        _ => Err(BasicError::Type {
+                            message: "Can only multiply numbers".to_string(),
+                            line_number: None,
+                        }),
+                    },
+                    "/" => match (left_val, right_val) {
+                        (SymbolValue::Number(a), SymbolValue::Number(b)) => {
+                            if b == 0.0 {
+                                Err(BasicError::Runtime {
+                                    message: "Division by zero".to_string(),
+                                    line_number: None,
+                                })
+                            } else {
+                                Ok(SymbolValue::Number(a / b))
+                            }
+                        },
+                        _ => Err(BasicError::Type {
+                            message: "Can only divide numbers".to_string(),
+                            line_number: None,
+                        }),
+                    },
+                    "^" => match (left_val, right_val) {
+                        (SymbolValue::Number(a), SymbolValue::Number(b)) => Ok(SymbolValue::Number(a.powf(b))),
+                        _ => Err(BasicError::Type {
+                            message: "Can only raise numbers to powers".to_string(),
+                            line_number: None,
+                        }),
+                    },
+                    _ => Err(BasicError::Internal {
+                        message: format!("Unknown binary operator: {}", op),
+                    }),
+                }
+            },
+            ExpressionType::UnaryOp { op, expr } => {
+                let val = self.evaluate_expression(expr)?;
+                match op.as_str() {
+                    "-" => match val {
+                        SymbolValue::Number(n) => Ok(SymbolValue::Number(-n)),
+                        _ => Err(BasicError::Type {
+                            message: "Can only negate numbers".to_string(),
+                            line_number: None,
+                        }),
+                    },
+                    "NOT" => match val {
+                        SymbolValue::Number(n) => Ok(SymbolValue::Number(if n == 0.0 { -1.0 } else { 0.0 })),
+                        _ => Err(BasicError::Type {
+                            message: "Can only apply NOT to numbers".to_string(),
+                            line_number: None,
+                        }),
+                    },
+                    _ => Err(BasicError::Internal {
+                        message: format!("Unknown unary operator: {}", op),
+                    }),
+                }
+            },
+            ExpressionType::FunctionCall { name, args } => {
+                // Evaluate all arguments
                 let mut evaluated_args = Vec::new();
                 for arg in args {
                     evaluated_args.push(self.evaluate_expression(arg)?);
                 }
                 
-                if let Some(func) = PredefinedFunctions::get(name) {
-                    func.call(&evaluated_args)
+                // Convert arguments to strings for predefined functions
+                let string_args: Vec<String> = evaluated_args.iter().map(|arg| {
+                    match arg {
+                        SymbolValue::Number(n) => n.to_string(),
+                        SymbolValue::String(s) => s.clone(),
+                        _ => "0".to_string(), // Default for unsupported types
+                    }
+                }).collect();
+                
+                // Convert to slice of string slices for function call
+                let str_slices: Vec<&str> = string_args.iter().map(|s| s.as_str()).collect();
+                
+                // Create predefined functions instance
+                let predef = PredefinedFunctions::new();
+                
+                // Try calling as predefined function
+                if predef.functions().contains(&name.to_string()) {
+                    if let Some(result) = predef.call(&name.to_string(), &str_slices) {
+                        // Try to parse result as number first
+                        if let Ok(n) = result.parse::<f64>() {
+                            Ok(SymbolValue::Number(n))
+                        } else {
+                            Ok(SymbolValue::String(result))
+                        }
+                    } else {
+                        Err(BasicError::Runtime {
+                            message: format!("Error calling function: {}", name),
+                            line_number: None,
+                        })
+                    }
                 } else {
-                    self.internal_symbols.call_function(name, &evaluated_args)
+                    // Must be a user-defined function
+                    match self.internal_symbols.get_symbol(name) {
+                        Some(SymbolValue::Function(func)) => {
+                            // TODO: Implement user-defined function calls
+                            Err(BasicError::Internal {
+                                message: "User-defined functions not yet implemented".to_string(),
+                            })
+                        },
+                        _ => Err(BasicError::Runtime {
+                            message: format!("Unknown function: {}", name),
+                            line_number: None,
+                        }),
+                    }
                 }
-            }
+            },
         }
     }
 
@@ -453,11 +611,11 @@ impl Interpreter {
     }
 
     fn put_symbol(&mut self, name: String, value: SymbolValue) {
-        // Always put in current scope
-        self.symbols.put_symbol(name, value);
+        // Check if this is a data breakpoint
         if self.data_breakpoints.contains(&name) {
             self.run_status = RunStatus::BreakData;
         }
+        self.symbols.put_symbol(name.clone(), value);
     }
 
     fn goto_line(&mut self, line_number: usize) -> Result<(), BasicError> {
@@ -494,7 +652,7 @@ impl Interpreter {
                 self.location.index += 1;
                 self.location.offset = 0;
             } else {
-                self.run_status = RunStatus::End;
+                self.run_status = RunStatus::EndNormal;
             }
         }
     }
@@ -503,7 +661,7 @@ impl Interpreter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::basic_types::{Token, Statement, Expression, StatementType, ExpressionType};
+    use crate::basic_types::{Token, Statement, Expression, ExpressionType};
 
     fn create_test_program(lines: Vec<(usize, Vec<Statement>)>) -> Program {
         let mut program = Program::new();
@@ -516,9 +674,27 @@ mod tests {
     #[test]
     fn test_line_number_execution() -> Result<(), BasicError> {
         let program = create_test_program(vec![
-            (10, vec![Statement::new_let("X".to_string(), Expression::new_number(1.0))]),
-            (20, vec![Statement::new_let("Y".to_string(), Expression::new_number(2.0))]),
-            (30, vec![Statement::new_let("Z".to_string(), Expression::new_number(3.0))]),
+            (10, vec![Statement::Let {
+                var: "X".to_string(),
+                expr: Expression {
+                    expr_type: ExpressionType::Number(1.0),
+                    line_number: None,
+                }
+            }]),
+            (20, vec![Statement::Let {
+                var: "Y".to_string(),
+                expr: Expression {
+                    expr_type: ExpressionType::Number(2.0),
+                    line_number: None,
+                }
+            }]),
+            (30, vec![Statement::Let {
+                var: "Z".to_string(),
+                expr: Expression {
+                    expr_type: ExpressionType::Number(3.0),
+                    line_number: None,
+                }
+            }]),
         ]);
         
         let mut interpreter = Interpreter::new(program);
@@ -534,10 +710,19 @@ mod tests {
     #[test]
     fn test_goto_line() -> Result<(), BasicError> {
         let program = create_test_program(vec![
-            (10, vec![Statement::new_let("X".to_string(), Expression::new_number(1.0))]),
+            (10, vec![Statement::new_let("X".to_string(), Expression {
+                expr_type: ExpressionType::Number(1.0),
+                line_number: None,
+            })]),
             (20, vec![Statement::new_goto(40)]),
-            (30, vec![Statement::new_let("Y".to_string(), Expression::new_number(2.0))]),
-            (40, vec![Statement::new_let("Z".to_string(), Expression::new_number(3.0))]),
+            (30, vec![Statement::new_let("Y".to_string(), Expression {
+                expr_type: ExpressionType::Number(2.0),
+                line_number: None,
+            })]),
+            (40, vec![Statement::new_let("Z".to_string(), Expression {
+                expr_type: ExpressionType::Number(3.0),
+                line_number: None,
+            })]),
         ]);
         
         let mut interpreter = Interpreter::new(program);
@@ -553,12 +738,21 @@ mod tests {
     #[test]
     fn test_rem_statement() -> Result<(), BasicError> {
         let program = create_test_program(vec![
-            (10, vec![Statement::new_let("X".to_string(), Expression::new_number(1.0))]),
+            (10, vec![Statement::new_let("X".to_string(), Expression {
+                expr_type: ExpressionType::Number(1.0),
+                line_number: None,
+            })]),
             (20, vec![
                 Statement::new_rem("This is a comment".to_string()),
-                Statement::new_let("Y".to_string(), Expression::new_number(2.0)), // Should be ignored
+                Statement::new_let("Y".to_string(), Expression {
+                    expr_type: ExpressionType::Number(2.0),
+                    line_number: None,
+                }), // Should be ignored
             ]),
-            (30, vec![Statement::new_let("Z".to_string(), Expression::new_number(3.0))]),
+            (30, vec![Statement::new_let("Z".to_string(), Expression {
+                expr_type: ExpressionType::Number(3.0),
+                line_number: None,
+            })]),
         ]);
         
         let mut interpreter = Interpreter::new(program);
@@ -587,9 +781,18 @@ mod tests {
     fn test_multiple_statements() -> Result<(), BasicError> {
         let program = create_test_program(vec![
             (10, vec![
-                Statement::new_let("X".to_string(), Expression::new_number(1.0)),
-                Statement::new_let("Y".to_string(), Expression::new_number(2.0)),
-                Statement::new_let("Z".to_string(), Expression::new_number(3.0)),
+                Statement::new_let("X".to_string(), Expression {
+                    expr_type: ExpressionType::Number(1.0),
+                    line_number: None,
+                }),
+                Statement::new_let("Y".to_string(), Expression {
+                    expr_type: ExpressionType::Number(2.0),
+                    line_number: None,
+                }),
+                Statement::new_let("Z".to_string(), Expression {
+                    expr_type: ExpressionType::Number(3.0),
+                    line_number: None,
+                }),
             ]),
         ]);
         
@@ -609,13 +812,22 @@ mod tests {
             (10, vec![Statement::new_dim("A".to_string(), vec![3, 3])]),
             (20, vec![Statement::new_let(
                 "A".to_string(),
-                Expression::new_array(
-                    "A".to_string(),
-                    vec![
-                        Expression::new_number(1.0),
-                        Expression::new_number(1.0),
-                    ],
-                ),
+                Expression {
+                    expr_type: ExpressionType::Array {
+                        name: "A".to_string(),
+                        indices: vec![
+                            Expression {
+                                expr_type: ExpressionType::Number(1.0),
+                                line_number: None,
+                            },
+                            Expression {
+                                expr_type: ExpressionType::Number(1.0),
+                                line_number: None,
+                            },
+                        ],
+                    },
+                    line_number: None,
+                },
             )]),
         ]);
         
