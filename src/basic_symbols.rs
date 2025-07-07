@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::basic_types::{SymbolValue};
+use crate::basic_types::{BasicError, SymbolValue};
 
 #[derive(Clone)]
 pub struct SymbolTable {
@@ -8,6 +8,22 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
+    pub fn create_array(&mut self, name: String, dimensions: Vec<usize>) -> Result<(), BasicError> {
+        if self.symbols.contains_key(&name) {
+            return Err(BasicError::Runtime {
+                message: format!("Array '{}' already declared", name),
+                line_number: None,
+            });
+        }
+
+        let total_size: usize = dimensions.iter().product();
+
+        let array = vec![SymbolValue::Number(0.0); total_size];
+
+        self.symbols.insert(name, SymbolValue::Array(array));
+
+        Ok(())
+    }
     pub fn new() -> Self {
         SymbolTable {
             symbols: HashMap::new(),
