@@ -317,6 +317,14 @@ impl Parser {
 
                 Ok(Statement::Dim { arrays })
             }
+            // Default: Assume LET if line starts with an identifier
+            Some(Token::Identifier(_)) => {
+                // Do NOT advance yet — your `parse_identifier()` should handle that
+                let var = self.parse_identifier()?;
+                self.consume(&Token::Equal, "Expected '=' after variable name")?;
+                let value = self.parse_expression()?;
+                Ok(Statement::Let { var, value })
+            }
             Some(token) => Err(BasicError::Syntax {
                 message: format!("Unexpected token: {}", token),
                 line_number: Some(self.current_line),
