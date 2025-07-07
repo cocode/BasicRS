@@ -1,14 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, Write};
-use rand::prelude::*;
-use ExpressionType::Number;
 use crate::basic_symbols::SymbolTable;
 
 use crate::basic_types::{
     Program, ProgramLine, Statement, Expression, BasicError,
     ExpressionType, RunStatus, SymbolValue,
-    Token,
 };
 
 use crate::basic_functions::PredefinedFunctions;
@@ -56,7 +53,7 @@ impl Interpreter {
             line_number_map.insert(line.line_number, i);
         }
         
-        let mut internal_symbols = SymbolTable::new();
+        let internal_symbols = SymbolTable::new();
         let symbols = internal_symbols.get_nested_scope();
         
         Interpreter {
@@ -366,9 +363,15 @@ impl Interpreter {
                 Ok(())
             }
             Statement::Restore {line}=> {
+                match line {
+                    Some(line_number) => {
+                        print!("TODO restore <LINE>{}", line_number);
+                    }
+                    None => {
+                        print!("TODO restore");
+                    }
+                }
                 self.data_pointer = 0;
-                print!("TODO restore <LINE>");
-
                 Ok(())
             }
             Statement::Dim { arrays } => {
@@ -518,7 +521,7 @@ impl Interpreter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::basic_types::{Token, Statement, Expression, ExpressionType, ArrayDecl};
+    use crate::basic_types::{Statement, Expression, ArrayDecl};
 
     fn create_test_program(lines: Vec<(usize, Vec<Statement>)>) -> Program {
         let mut program = Program::new();
