@@ -1,4 +1,4 @@
-use crate::basic_types::{ArrayDecl};
+use crate::basic_types::{ArrayDecl, SymbolValue};
 
 use crate::basic_types::{
     Token, BasicError, Statement, Expression,
@@ -9,7 +9,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
     current_line: usize,
-    _data_values: ()
+    _data_values: Vec<SymbolValue>
 }
 
 impl Parser {
@@ -18,7 +18,7 @@ impl Parser {
             tokens,
             current: 0,
             current_line: 1,
-            _data_values: ()
+            _data_values: Vec::new(),
         }
     }
 
@@ -89,6 +89,35 @@ impl Parser {
         Ok(statements)
     }
 
+    fn parse_data_constant(&mut self) -> Result<SymbolValue, BasicError> {
+        let token = self.peek().cloned();
+
+        match token {
+            Some(Token::Number(n)) => {
+                self.advance();
+                let value = n.parse::<f64>().map_err(|_| BasicError::Syntax {
+                    message: format!("Invalid numeric constant in DATA: {}", n),
+                    line_number: Some(self.current_line),
+                })?;
+                Ok(SymbolValue::Number(value))
+            }
+
+            Some(Token::String(s)) => {
+                self.advance();
+                Ok(SymbolValue::String(s))
+            }
+
+            Some(other) => Err(BasicError::Syntax {
+                message: format!("Invalid token in DATA statement: {}", other),
+                line_number: Some(self.current_line),
+            }),
+
+            None => Err(BasicError::Syntax {
+                message: "Unexpected end of input in DATA statement".to_string(),
+                line_number: Some(self.current_line),
+            }),
+        }
+    }
     fn parse_statement(&mut self) -> Result<Statement, BasicError> {
         match self.peek() {
             Some(Token::Let) => {
