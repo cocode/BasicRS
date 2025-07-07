@@ -203,7 +203,7 @@ impl From<std::io::Error> for BasicError {
 pub enum RunStatus {
     // TODO there should be a 'have not run yet' status, but we start with run.
     Run,
-    EndNormal,
+    EndNormal,  // is EndNormal a duplicate ofEndProgram
     EndErrorSyntax,
     EndErrorRuntime,
     EndErrorInternal,
@@ -247,7 +247,7 @@ pub enum Statement {
     Stop,
     Rem { comment: String },
     Data { values: Vec<Expression> },
-    Read { var: String },
+    Read { vars: Vec<String>},
     Restore { line: Option<usize> },
     Dim {
         arrays: Vec<ArrayDecl>,
@@ -308,8 +308,8 @@ impl Statement {
         Statement::Data { values }
     }
 
-    pub fn new_read(var: String) -> Self {
-        Statement::Read { var }
+    pub fn new_read(vars: Vec<String>) -> Self {
+        Statement::Read { vars }
     }
 
     pub fn new_restore(line: Option<usize>) -> Self {
