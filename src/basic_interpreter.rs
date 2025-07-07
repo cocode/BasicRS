@@ -446,7 +446,7 @@ impl Interpreter {
         // Try current scope first, then parent scopes
         if let Some(value) = self.symbols.get(name) {
             Ok(value.clone())
-        } else if let Some(value) = self.internal_symbols.get(name) {
+        } else if let Some(value) = self.internal_symbols.get_symbol(name) {
             Ok(value.clone())
         } else {
             Err(BasicError::Runtime {
@@ -458,8 +458,9 @@ impl Interpreter {
 
     fn put_symbol(&mut self, name: String, value: SymbolValue) {
         // Always put in current scope
-        self.symbols.put(name, value);
-        if self.data_breakpoints.contains(&name) {
+        let name_copy=name.clone();
+        self.symbols.put_symbol(name, value);
+        if self.data_breakpoints.contains(&name_copy) {
             self.run_status = RunStatus::BreakData;
         }
     }
@@ -507,7 +508,7 @@ impl Interpreter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::basic_types::{Token, Statement, Expression, StatementType, ExpressionType};
+    use crate::basic_types::{Token, Statement, Expression, StatementType, ExpressionType, ArrayDecl};
 
     fn create_test_program(lines: Vec<(usize, Vec<Statement>)>) -> Program {
         let mut program = Program::new();
@@ -610,30 +611,42 @@ mod tests {
     #[test]
     fn test_array_indexing() -> Result<(), BasicError> {
         let program = create_test_program(vec![
-            (10, vec![Statement::new_dim("A".to_string(), vec![3, 3])]),
-            (20, vec![Statement::new_let(
-                "A".to_string(),
-                Expression::new_array(
-                    "A".to_string(),
-                    vec![
-                        Expression::new_number(1.0),
-                        Expression::new_number(1.0),
-                    ],
-                ),
-            )]),
+            (10, vec![Statement::new_dim(vec![
+                ArrayDecl { name: "A".to_string(), dimensions: vec![2, 5] }
+            ])]),
+
+            (20, vec![Statement::new_dim(vec![
+                ArrayDecl { name: "B".to_string(), dimensions: vec![4] }
+            ])]),
+
+            (30, vec![Statement::new_dim(vec![
+                ArrayDecl { name: "C$".to_string(), dimensions: vec![3] }
+            ])]),
         ]);
-        
         let mut interpreter = Interpreter::new(program);
         interpreter.run();
-        
-        // Test array access
-        if let SymbolValue::Array(arr) = interpreter.get_symbol("A")? {
-            assert_eq!(arr.len(), 3);
-            assert_eq!(arr[0].len(), 3);
+
+        // Test 2D numeric array
+        if let SymbolValue::Array2DNumber(arr) = interpreter.get_symbol("A")? {
+            assert_eq!(arr.len(), 2);               // rows
+            assert_eq!(arr[0].len(), 5);            // columns
         } else {
-            panic!("Expected array");
+            panic!("Expected 2D numeric array 'A'");
         }
-        
+
+        // Test 1D numeric array
+        if let SymbolValue::Array1DNumber(arr) = interpreter.get_symbol("B")? {
+            assert_eq!(arr.len(), 4);
+        } else {
+            panic!("Expected 1D numeric array 'B'");
+        }
+
+        // Test 1D string array
+        if let SymbolValue::Array1DString(arr) = interpreter.get_symbol("C$")? {
+            assert_eq!(arr.len(), 3);
+        } else {
+            panic!("Expected 1D string array 'C$'");
+        }
+
         Ok(())
-    }
-} 
+    }}
