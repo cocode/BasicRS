@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::basic_types::{BasicError, SymbolValue};
+use crate::basic_types::{BasicError, Expression, SymbolValue};
 
 #[derive(Clone)]
 pub struct SymbolTable {
@@ -130,7 +130,20 @@ impl SymbolTable {
                 line_number: None,
             }),
         }
-    }    pub fn new() -> Self {
+    }
+    pub fn define_function(&mut self, name: String, param: Vec<String>, expr: Expression) -> Result<(), BasicError> {
+        if self.symbols.contains_key(&name) {
+            return Err(BasicError::Runtime {
+                message: format!("Function '{}' already defined", name),
+                line_number: None,
+            });
+        }
+
+        self.symbols.insert(name, SymbolValue::FunctionDef { param, expr });
+        Ok(())
+    }
+
+    pub fn new() -> Self {
         SymbolTable {
             symbols: HashMap::new(),
             parent: None,
