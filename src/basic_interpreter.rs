@@ -3,16 +3,12 @@ use std::fs::File;
 use std::io::{self, Write};
 use rand::prelude::*;
 use ExpressionType::Number;
-// use crate::basic_symbols::SymbolTable;
+use crate::basic_symbols::SymbolTable;
 
 use crate::basic_types::{
     Program, ProgramLine, Statement, Expression, BasicError,
     ExpressionType, RunStatus, SymbolValue,
     Token,
-};
-
-use crate::basic_symbols:: {
-    SymbolTable
 };
 
 use crate::basic_functions::PredefinedFunctions;
@@ -426,13 +422,27 @@ impl Interpreter {
             ExpressionType::FunctionCall { name, args } => {
                 let mut evaluated_args = Vec::new();
                 for arg in args {
-                    evaluated_args.push(self.evaluate_expression(arg)?);
+                    let value = self.evaluate_expression(arg)?;
+                    if let SymbolValue::Number(n) = value {
+                        evaluated_args.push(n);
+                    } else {
+                        return Err(BasicError::Runtime {
+                            message: format!("Invalid argument for function '{}'", name),
+                            line_number: None,
+                        });
+                    }
                 }
 
-                if let Some(func) = PredefinedFunctions::get(name) {
-                    func.call(&evaluated_args)
+                let funcs = PredefinedFunctions::new();
+
+                if let Some(result) = funcs.call(name, &evaluated_args) {
+                    Ok(SymbolValue::Number(result))
                 } else {
-                    self.internal_symbols.call_function(name, &evaluated_args)
+                        Err(BasicError::Runtime {
+                            message: format!("Unknown function '{}'", name),
+                            line_number: None,
+                        })
+                    // self.internal_symbols.call_function(name, &evaluated_args)
                 }
             }
 
@@ -444,7 +454,7 @@ impl Interpreter {
     }
     fn get_symbol(&self, name: &str) -> Result<SymbolValue, BasicError> {
         // Try current scope first, then parent scopes
-        if let Some(value) = self.symbols.get(name) {
+        if let Some(value) = self.symbols.get_symbol(name) {
             Ok(value.clone())
         } else if let Some(value) = self.internal_symbols.get_symbol(name) {
             Ok(value.clone())
@@ -499,7 +509,7 @@ impl Interpreter {
                 self.location.index += 1;
                 self.location.offset = 0;
             } else {
-                self.run_status = RunStatus::End;
+                self.run_status = RunStatus::EndOfProgram;
             }
         }
     }
@@ -508,7 +518,7 @@ impl Interpreter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::basic_types::{Token, Statement, Expression, StatementType, ExpressionType, ArrayDecl};
+    use crate::basic_types::{Token, Statement, Expression, ExpressionType, ArrayDecl};
 
     fn create_test_program(lines: Vec<(usize, Vec<Statement>)>) -> Program {
         let mut program = Program::new();
