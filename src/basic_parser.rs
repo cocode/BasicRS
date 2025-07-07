@@ -9,6 +9,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
     current_line: usize,
+    _data_values: ()
 }
 
 impl Parser {
@@ -17,6 +18,7 @@ impl Parser {
             tokens,
             current: 0,
             current_line: 1,
+            _data_values: ()
         }
     }
 
@@ -28,7 +30,11 @@ impl Parser {
             self.current_line = line_number;
             let source = self.get_line_source();
             let statements = self.parse_statements()?;
-            
+            for stmt in &statements {
+                if let Statement::Data { values } = stmt {
+                    self._data_values.extend(values.iter().cloned());
+                }
+            }
             program.add_line(line_number, source, statements);
             
             // Skip any extra newlines between statements
@@ -211,9 +217,11 @@ impl Parser {
                 self.advance();
                 let mut values = Vec::new();
                 while !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
-                    values.push(self.parse_expression()?);
-                    if self.match_any(&[Token::Comma]) {
-                        continue;
+                    let value = self.parse_data_constant()?;
+                    values.push(value);
+
+                    if self.check(&Token::Comma) {
+                        self.advance();
                     } else {
                         break;
                     }
