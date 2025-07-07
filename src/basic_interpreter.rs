@@ -402,40 +402,46 @@ impl Interpreter {
         }
     }
 
-        fn evaluate_expression(&mut self, expr: &Expression) -> Result<SymbolValue, BasicError> {
-            match &expr.expr_type {
-                ExpressionType::Number(n) => Ok(SymbolValue::Number(*n)),
-                ExpressionType::String(s) => Ok(SymbolValue::String(s.clone())),
-                ExpressionType::Variable(name) => self.get_symbol(name),
-                ExpressionType::Array { name, indices } => {
-                    let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
-                        .map(|expr| match self.evaluate_expression(expr)? {
-                            SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
-                            _ => Err(BasicError::Runtime {
-                                message: "Array index must be a non-negative integer".to_string(),
-                                line_number: None,
-                            })
+    fn evaluate_expression(&mut self, expr: &Expression) -> Result<SymbolValue, BasicError> {
+        match &expr.expr_type {
+            ExpressionType::Number(n) => Ok(SymbolValue::Number(*n)),
+            ExpressionType::String(s) => Ok(SymbolValue::String(s.clone())),
+            ExpressionType::Variable(name) => self.get_symbol(name),
+
+            ExpressionType::Array { name, indices } => {
+                let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
+                    .map(|expr| match self.evaluate_expression(expr)? {
+                        SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                        _ => Err(BasicError::Runtime {
+                            message: "Array index must be a non-negative integer".to_string(),
+                            line_number: expr.line_number,  // You can pass expr.line_number here
                         })
-                        .collect();
+                    })
+                    .collect();
 
-                    let indices = idx_values?;
-                    self.symbols.get_array_element(name, &indices)
-                },
-                Expression::Function { name, args } => {
-                    let mut evaluated_args = Vec::new();
-                    for arg in args {
-                        evaluated_args.push(self.evaluate_expression(arg)?);
-                    }
+                let indices = idx_values?;
+                self.symbols.get_array_element(name, &indices)
+            }
 
-                    if let Some(func) = PredefinedFunctions::get(name) {
-                        func.call(&evaluated_args)
-                    } else {
-                        self.internal_symbols.call_function(name, &evaluated_args)
-                    }
+            ExpressionType::FunctionCall { name, args } => {
+                let mut evaluated_args = Vec::new();
+                for arg in args {
+                    evaluated_args.push(self.evaluate_expression(arg)?);
+                }
+
+                if let Some(func) = PredefinedFunctions::get(name) {
+                    func.call(&evaluated_args)
+                } else {
+                    self.internal_symbols.call_function(name, &evaluated_args)
                 }
             }
-        }
 
+            _ => Err(BasicError::Runtime {
+                message: "Unsupported expression type".to_string(),
+                line_number: expr.line_number,
+            }),
+        }
+    }
     fn get_symbol(&self, name: &str) -> Result<SymbolValue, BasicError> {
         // Try current scope first, then parent scopes
         if let Some(value) = self.symbols.get(name) {

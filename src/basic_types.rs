@@ -667,7 +667,12 @@ mod tests {
 pub enum SymbolValue {
     Number(f64),
     String(String),
-    Array(Vec<SymbolValue>),
+
+    Array1DNumber(Vec<f64>),
+    Array2DNumber(Vec<Vec<f64>>),
+
+    Array1DString(Vec<String>),
+    Array2DString(Vec<Vec<String>>),
 }
 
 impl PartialOrd for SymbolValue {
@@ -683,7 +688,11 @@ impl PartialOrd for SymbolValue {
 impl SymbolValue {
     pub fn len(&self) -> usize {
         match self {
-            SymbolValue::Array(arr) => arr.len(),
+            SymbolValue::Array1DNumber(arr) => arr.len(),
+            SymbolValue::Array2DNumber(arr) => arr.len(),
+            SymbolValue::Array1DString(arr) => arr.len(),
+            SymbolValue::Array2DString(arr) => arr.len(),
+            SymbolValue::String(s) => s.len(),
             _ => 0,
         }
     }
@@ -694,7 +703,30 @@ impl fmt::Display for SymbolValue {
         match self {
             SymbolValue::Number(n) => write!(f, "{}", n),
             SymbolValue::String(s) => write!(f, "{}", s),
-            SymbolValue::Array(a) => write!(f, "{:?}", a),
+
+            SymbolValue::Array1DNumber(a) => write!(f, "{:?}", a),
+            SymbolValue::Array2DNumber(a) => {
+                write!(f, "[")?;
+                for (i, row) in a.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", row)?;
+                }
+                write!(f, "]")
+            }
+
+            SymbolValue::Array1DString(a) => write!(f, "{:?}", a),
+            SymbolValue::Array2DString(a) => {
+                write!(f, "[")?;
+                for (i, row) in a.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", row)?;
+                }
+                write!(f, "]")
+            }
         }
     }
-} 
+}

@@ -8,6 +8,89 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
+    pub fn get_array_element(&self, name: &str, indices: &[usize]) -> Result<SymbolValue, BasicError> {
+        let symbol = self.get_symbol(name).ok_or(BasicError::Runtime {
+            message: format!("Array '{}' not found", name),
+            line_number: None,
+        })?;
+
+        match symbol {
+            SymbolValue::Array1DNumber(vec) => {
+                if indices.len() != 1 {
+                    return Err(BasicError::Runtime {
+                        message: format!("Array '{}' expects 1 index", name),
+                        line_number: None,
+                    });
+                }
+                let index = indices[0];
+                if index >= vec.len() {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        line_number: None,
+                    });
+                }
+                Ok(SymbolValue::Number(vec[index]))
+            }
+
+            SymbolValue::Array2DNumber(vec) => {
+                if indices.len() != 2 {
+                    return Err(BasicError::Runtime {
+                        message: format!("Array '{}' expects 2 indices", name),
+                        line_number: None,
+                    });
+                }
+                let row = indices[0];
+                let col = indices[1];
+                if row >= vec.len() || col >= vec[row].len() {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        line_number: None,
+                    });
+                }
+                Ok(SymbolValue::Number(vec[row][col]))
+            }
+
+            SymbolValue::Array1DString(vec) => {
+                if indices.len() != 1 {
+                    return Err(BasicError::Runtime {
+                        message: format!("Array '{}' expects 1 index", name),
+                        line_number: None,
+                    });
+                }
+                let index = indices[0];
+                if index >= vec.len() {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        line_number: None,
+                    });
+                }
+                Ok(SymbolValue::String(vec[index].clone()))
+            }
+
+            SymbolValue::Array2DString(vec) => {
+                if indices.len() != 2 {
+                    return Err(BasicError::Runtime {
+                        message: format!("Array '{}' expects 2 indices", name),
+                        line_number: None,
+                    });
+                }
+                let row = indices[0];
+                let col = indices[1];
+                if row >= vec.len() || col >= vec[row].len() {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        line_number: None,
+                    });
+                }
+                Ok(SymbolValue::String(vec[row][col].clone()))
+            }
+
+            _ => Err(BasicError::Runtime {
+                message: format!("'{}' is not an array", name),
+                line_number: None,
+            }),
+        }
+    }
     pub fn create_array(&mut self, name: String, dimensions: Vec<usize>) -> Result<(), BasicError> {
         if self.symbols.contains_key(&name) {
             return Err(BasicError::Runtime {
@@ -16,15 +99,38 @@ impl SymbolTable {
             });
         }
 
-        let total_size: usize = dimensions.iter().product();
+        let is_string = name.ends_with('$');
 
-        let array = vec![SymbolValue::Number(0.0); total_size];
+        match dimensions.len() {
+            1 => {
+                let size = dimensions[0];
+                let array = if is_string {
+                    SymbolValue::Array1DString(vec!["".to_string(); size])
+                } else {
+                    SymbolValue::Array1DNumber(vec![0.0; size])
+                };
+                self.symbols.insert(name, array);
+                Ok(())
+            }
 
-        self.symbols.insert(name, SymbolValue::Array(array));
+            2 => {
+                let rows = dimensions[0];
+                let cols = dimensions[1];
+                let array = if is_string {
+                    SymbolValue::Array2DString(vec![vec!["".to_string(); cols]; rows])
+                } else {
+                    SymbolValue::Array2DNumber(vec![vec![0.0; cols]; rows])
+                };
+                self.symbols.insert(name, array);
+                Ok(())
+            }
 
-        Ok(())
-    }
-    pub fn new() -> Self {
+            _ => Err(BasicError::Runtime {
+                message: "Only 1D and 2D arrays are supported".to_string(),
+                line_number: None,
+            }),
+        }
+    }    pub fn new() -> Self {
         SymbolTable {
             symbols: HashMap::new(),
             parent: None,
