@@ -20,6 +20,9 @@ fn main() {
                 Ok(program) => {
                     // TODO: Run the program
                     println!("Program parsed successfully!");
+                    use basic_rs::basic_interpreter::Interpreter;
+                    let mut interpreter = Interpreter::new(program);
+                    interpreter.run();
                     process::exit(0);
                 }
                 Err(e) => {
