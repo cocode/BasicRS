@@ -667,14 +667,15 @@ mod tests {
 pub enum SymbolValue {
     Number(f64),
     String(String),
-
     Array1DNumber(Vec<f64>),
     Array2DNumber(Vec<Vec<f64>>),
-
     Array1DString(Vec<String>),
     Array2DString(Vec<Vec<String>>),
+    FunctionDef {
+        param: Vec<String>,
+        expr: Expression,
+    },
 }
-
 impl PartialOrd for SymbolValue {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
@@ -726,6 +727,9 @@ impl fmt::Display for SymbolValue {
                     write!(f, "{:?}", row)?;
                 }
                 write!(f, "]")
+            }
+            SymbolValue::FunctionDef { param, expr } => {
+                write!(f, "FN({}) = {}", param.join(", "), expr)
             }
         }
     }
