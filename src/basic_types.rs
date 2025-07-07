@@ -246,7 +246,7 @@ pub enum Statement {
     End,
     Stop,
     Rem { comment: String },
-    Data { values: Vec<Expression> },
+    Data { values: Vec<SymbolValue> },
     Read { vars: Vec<String>},
     Restore { line: Option<usize> },
     Dim {
@@ -304,7 +304,7 @@ impl Statement {
         Statement::Rem { comment }
     }
 
-    pub fn new_data(values: Vec<Expression>) -> Self {
+    pub fn new_data(values: Vec<SymbolValue>) -> Self {
         Statement::Data { values }
     }
 
