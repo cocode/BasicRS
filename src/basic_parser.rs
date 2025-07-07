@@ -222,8 +222,20 @@ impl Parser {
             }
             Some(Token::Read) => {
                 self.advance();
-                let var = self.parse_identifier()?;
-                Ok(Statement::Read { var })
+                let mut vars = Vec::new();
+
+                while !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
+                    let var = self.parse_identifier()?;
+                    vars.push(var);
+
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+
+                Ok(Statement::Read { vars })
             }
             Some(Token::Restore) => {
                 self.advance();
@@ -603,10 +615,8 @@ mod tests {
 
         // Check LET statement
         if let Statement::Let { var, value } = &program.lines[0].statements[0] {
-            assert_eq!(var, "X");
-            // assert_eq!(value, "1"); # need to verify the expression
-            // TODO value
-            // Optionally check value...
+            assert_eq!("X", var);
+            // assert_eq!("1", self.evaluate_expression(value), "1");
         } else {
             panic!("Expected LET statement");
         }
