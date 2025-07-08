@@ -101,17 +101,32 @@ impl Parser {
                 })?;
                 Ok(SymbolValue::Number(value))
             }
-
+            Some(Token::Minus) => {
+                // Handle negative numbers
+                self.advance();
+                match self.peek().cloned() {
+                    Some(Token::Number(n)) => {
+                        self.advance();
+                        let value = n.parse::<f64>().map_err(|_| BasicError::Syntax {
+                            message: format!("Invalid numeric constant in DATA: -{}", n),
+                            line_number: Some(self.current_line),
+                        })?;
+                        Ok(SymbolValue::Number(-value))
+                    }
+                    _ => Err(BasicError::Syntax {
+                        message: "Expected number after minus sign in DATA".to_string(),
+                        line_number: Some(self.current_line),
+                    })
+                }
+            }
             Some(Token::String(s)) => {
                 self.advance();
                 Ok(SymbolValue::String(s))
             }
-
             Some(other) => Err(BasicError::Syntax {
                 message: format!("Invalid token in DATA statement: {}", other),
                 line_number: Some(self.current_line),
             }),
-
             None => Err(BasicError::Syntax {
                 message: "Unexpected end of input in DATA statement".to_string(),
                 line_number: Some(self.current_line),
@@ -258,7 +273,7 @@ impl Parser {
                 let mut vars = Vec::new();
 
                 while !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
-                    let var = self.parse_identifier()?;
+                    let var = self.parse_primary()?;
                     vars.push(var);
 
                     if self.check(&Token::Comma) {
@@ -278,7 +293,7 @@ impl Parser {
             Some(Token::Restore) => {
                 self.advance();
                 let line = if !self.check(&Token::Colon) && !self.check(&Token::Newline) {
-                    Some(self.parse_line_number()?)
+                    Some(self.parse_number()? as usize)
                 } else {
                     None
                 };

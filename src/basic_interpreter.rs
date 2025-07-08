@@ -379,7 +379,7 @@ impl Interpreter {
             Statement::Rem { .. } => Ok(()),
             Statement::Data { .. } => Ok(()),  // DATA is ignored at runtime
             Statement::Read { vars } => {
-                for var in vars {
+                for var_expr in vars {
                     if self.data_pointer >= self.data_values.len() {
                         return Err(BasicError::Runtime {
                             message: "Out of DATA values".to_string(),
@@ -387,7 +387,7 @@ impl Interpreter {
                         });
                     }
                     let value = self.data_values[self.data_pointer].clone();
-                    self.put_symbol(var.clone(), value);
+                    self.assign_lvalue(var_expr, value)?;
                     self.data_pointer += 1;
                 }
                 Ok(())
@@ -563,6 +563,32 @@ impl Interpreter {
             } else {
                 self.run_status = RunStatus::EndOfProgram;
             }
+        }
+    }
+
+    fn assign_lvalue(&mut self, expr: &Expression, value: SymbolValue) -> Result<(), BasicError> {
+        match &expr.expr_type {
+            ExpressionType::Variable(name) => {
+                self.put_symbol(name.clone(), value);
+                Ok(())
+            }
+            ExpressionType::Array { name, indices } => {
+                let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
+                    .map(|expr| match self.evaluate_expression(expr)? {
+                        SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                        _ => Err(BasicError::Runtime {
+                            message: "Array index must be a non-negative integer".to_string(),
+                            line_number: expr.line_number,
+                        })
+                    })
+                    .collect();
+                let indices = idx_values?;
+                self.symbols.set_array_element(name, &indices, value)
+            }
+            _ => Err(BasicError::Runtime {
+                message: "Invalid lvalue in READ statement".to_string(),
+                line_number: expr.line_number,
+            })
         }
     }
 }
