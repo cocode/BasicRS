@@ -1,4 +1,4 @@
-# TrekBasic
+# BasicRS
 
 BasicRS is a Rust implementation of a BASIC Interpreter 
 
