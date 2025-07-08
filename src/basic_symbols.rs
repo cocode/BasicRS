@@ -91,6 +91,123 @@ impl SymbolTable {
             }),
         }
     }
+
+    pub fn set_array_element(&mut self, name: &str, indices: &[usize], value: SymbolValue) -> Result<(), BasicError> {
+        let symbol = self.symbols.get_mut(name).ok_or(BasicError::Runtime {
+            message: format!("Array '{}' not found", name),
+            line_number: None,
+        })?;
+
+        match symbol {
+            SymbolValue::Array1DNumber(vec) => {
+                if indices.len() != 1 {
+                    return Err(BasicError::Runtime {
+                        message: format!("Array '{}' expects 1 index", name),
+                        line_number: None,
+                    });
+                }
+                let index = indices[0];
+                if index >= vec.len() {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        line_number: None,
+                    });
+                }
+                if let SymbolValue::Number(n) = value {
+                    vec[index] = n;
+                    Ok(())
+                } else {
+                    Err(BasicError::Runtime {
+                        message: "Type mismatch: expected number".to_string(),
+                        line_number: None,
+                    })
+                }
+            }
+
+            SymbolValue::Array2DNumber(vec) => {
+                if indices.len() != 2 {
+                    return Err(BasicError::Runtime {
+                        message: format!("Array '{}' expects 2 indices", name),
+                        line_number: None,
+                    });
+                }
+                let row = indices[0];
+                let col = indices[1];
+                if row >= vec.len() || col >= vec[row].len() {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        line_number: None,
+                    });
+                }
+                if let SymbolValue::Number(n) = value {
+                    vec[row][col] = n;
+                    Ok(())
+                } else {
+                    Err(BasicError::Runtime {
+                        message: "Type mismatch: expected number".to_string(),
+                        line_number: None,
+                    })
+                }
+            }
+
+            SymbolValue::Array1DString(vec) => {
+                if indices.len() != 1 {
+                    return Err(BasicError::Runtime {
+                        message: format!("Array '{}' expects 1 index", name),
+                        line_number: None,
+                    });
+                }
+                let index = indices[0];
+                if index >= vec.len() {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        line_number: None,
+                    });
+                }
+                if let SymbolValue::String(s) = value {
+                    vec[index] = s;
+                    Ok(())
+                } else {
+                    Err(BasicError::Runtime {
+                        message: "Type mismatch: expected string".to_string(),
+                        line_number: None,
+                    })
+                }
+            }
+
+            SymbolValue::Array2DString(vec) => {
+                if indices.len() != 2 {
+                    return Err(BasicError::Runtime {
+                        message: format!("Array '{}' expects 2 indices", name),
+                        line_number: None,
+                    });
+                }
+                let row = indices[0];
+                let col = indices[1];
+                if row >= vec.len() || col >= vec[row].len() {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        line_number: None,
+                    });
+                }
+                if let SymbolValue::String(s) = value {
+                    vec[row][col] = s;
+                    Ok(())
+                } else {
+                    Err(BasicError::Runtime {
+                        message: "Type mismatch: expected string".to_string(),
+                        line_number: None,
+                    })
+                }
+            }
+
+            _ => Err(BasicError::Runtime {
+                message: format!("'{}' is not an array", name),
+                line_number: None,
+            }),
+        }
+    }
+
     pub fn create_array(&mut self, name: String, dimensions: Vec<usize>) -> Result<(), BasicError> {
         if self.symbols.contains_key(&name) {
             return Err(BasicError::Runtime {

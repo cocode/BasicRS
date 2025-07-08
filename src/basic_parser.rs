@@ -127,7 +127,7 @@ impl Parser {
         match self.peek() {
             Some(Token::Let) => {
                 self.advance();
-                let var = self.parse_identifier()?;
+                let var = self.parse_primary()?; // Parse as expression to handle arrays
                 self.consume(&Token::Equal, "Expected '=' after variable name")?;
                 let value = self.parse_expression()?;
                 Ok(Statement::Let { var, value })
@@ -303,8 +303,8 @@ impl Parser {
             }
             // Default: Assume LET if line starts with an identifier
             Some(Token::Identifier(_)) => {
-                // Do NOT advance yet — your `parse_identifier()` should handle that
-                let var = self.parse_identifier()?;
+                // Parse as expression to handle both variables and arrays
+                let var = self.parse_primary()?;
                 self.consume(&Token::Equal, "Expected '=' after variable name")?;
                 let value = self.parse_expression()?;
                 Ok(Statement::Let { var, value })
@@ -620,7 +620,11 @@ mod tests {
         let stmt = &program.lines[0].statements[0];
 
         if let Statement::Let { var, .. } = stmt {
-            assert_eq!(var, "X");
+            if let Expression { expr_type: ExpressionType::Variable(name), .. } = var {
+                assert_eq!(name, "X");
+            } else {
+                panic!("Expected variable expression");
+            }
         } else {
             panic!("Expected LET statement");
         }
@@ -648,8 +652,11 @@ mod tests {
 
         // Check LET statement
         if let Statement::Let { var, value: _ } = &program.lines[0].statements[0] {
-            assert_eq!("X", var);
-            // assert_eq!("1", self.evaluate_expression(value), "1");
+            if let Expression { expr_type: ExpressionType::Variable(name), .. } = var {
+                assert_eq!(name, "X");
+            } else {
+                panic!("Expected variable expression");
+            }
         } else {
             panic!("Expected LET statement");
         }

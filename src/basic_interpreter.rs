@@ -174,8 +174,30 @@ impl Interpreter {
         match stmt {
             Statement::Let { var, value } => {
                 let result = self.evaluate_expression(value)?;
-                self.put_symbol(var.clone(), result);
-                Ok(())
+                match &var.expr_type {
+                    ExpressionType::Variable(name) => {
+                        self.put_symbol(name.clone(), result);
+                        Ok(())
+                    }
+                    ExpressionType::Array { name, indices } => {
+                        let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
+                            .map(|expr| match self.evaluate_expression(expr)? {
+                                SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                                _ => Err(BasicError::Runtime {
+                                    message: "Array index must be a non-negative integer".to_string(),
+                                    line_number: expr.line_number,
+                                })
+                            })
+                            .collect();
+                        let indices = idx_values?;
+                        self.symbols.set_array_element(name, &indices, result)?;
+                        Ok(())
+                    }
+                    _ => Err(BasicError::Runtime {
+                        message: "Invalid left-hand side in assignment".to_string(),
+                        line_number: var.line_number,
+                    })
+                }
             }
             Statement::Print { expressions } => {
                 for (i, expr) in expressions.iter().enumerate() {
@@ -541,9 +563,9 @@ mod tests {
     #[test]
     fn test_line_number_execution() -> Result<(), BasicError> {
         let program = create_test_program(vec![
-            (10, vec![Statement::new_let("X".to_string(), Expression::new_number(1.0))]),
-            (20, vec![Statement::new_let("Y".to_string(), Expression::new_number(2.0))]),
-            (30, vec![Statement::new_let("Z".to_string(), Expression::new_number(3.0))]),
+            (10, vec![Statement::new_let(Expression::new_variable("X".to_string()), Expression::new_number(1.0))]),
+            (20, vec![Statement::new_let(Expression::new_variable("Y".to_string()), Expression::new_number(2.0))]),
+            (30, vec![Statement::new_let(Expression::new_variable("Z".to_string()), Expression::new_number(3.0))]),
         ]);
         
         let mut interpreter = Interpreter::new(program);
@@ -559,10 +581,10 @@ mod tests {
     #[test]
     fn test_goto_line() -> Result<(), BasicError> {
         let program = create_test_program(vec![
-            (10, vec![Statement::new_let("X".to_string(), Expression::new_number(1.0))]),
+            (10, vec![Statement::new_let(Expression::new_variable("X".to_string()), Expression::new_number(1.0))]),
             (20, vec![Statement::new_goto(40)]),
-            (30, vec![Statement::new_let("Y".to_string(), Expression::new_number(2.0))]),
-            (40, vec![Statement::new_let("Z".to_string(), Expression::new_number(3.0))]),
+            (30, vec![Statement::new_let(Expression::new_variable("Y".to_string()), Expression::new_number(2.0))]),
+            (40, vec![Statement::new_let(Expression::new_variable("Z".to_string()), Expression::new_number(3.0))]),
         ]);
 
         println!("Program has {} lines.", program.lines.len());
@@ -615,9 +637,9 @@ mod tests {
     fn test_multiple_statements() -> Result<(), BasicError> {
         let program = create_test_program(vec![
             (10, vec![
-                Statement::new_let("X".to_string(), Expression::new_number(1.0)),
-                Statement::new_let("Y".to_string(), Expression::new_number(2.0)),
-                Statement::new_let("Z".to_string(), Expression::new_number(3.0)),
+                Statement::new_let(Expression::new_variable("X".to_string()), Expression::new_number(1.0)),
+                Statement::new_let(Expression::new_variable("Y".to_string()), Expression::new_number(2.0)),
+                Statement::new_let(Expression::new_variable("Z".to_string()), Expression::new_number(3.0)),
             ]),
         ]);
         

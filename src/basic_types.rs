@@ -247,7 +247,7 @@ impl fmt::Display for ArrayDecl {
 // Statement types
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
-    Let { var: String, value: Expression },
+    Let { var: Expression, value: Expression },
     Print { expressions: Vec<Expression> },
     Input { var: String },
     If { condition: Expression, then_stmt: Box<Statement>, else_stmt: Option<Box<Statement>> },
@@ -281,7 +281,7 @@ impl Statement {
         }
     }
 
-    pub fn new_let(var: String, value: Expression) -> Self {
+    pub fn new_let(var: Expression, value: Expression) -> Self {
         Statement::Let { var, value }
     }
 
