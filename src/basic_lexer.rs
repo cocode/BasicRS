@@ -49,7 +49,8 @@ impl<'a> Lexer<'a> {
                     }
                     
                     if is_start_of_line && !number.contains('.') {
-                        tokens.push(Token::LineNumber(number.parse().unwrap()));
+                        let line_num = number.parse().unwrap();
+                        tokens.push(Token::LineNumber(line_num));
                     } else {
                         tokens.push(Token::Number(number));
                     }
