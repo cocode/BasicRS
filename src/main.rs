@@ -23,12 +23,9 @@ fn main() {
                     // TODO: Run the program
                     println!("Program parsed successfully!");
                     println!("Program has {} lines.", program.lines.len());
-                    println!("{}", program);
                     use basic_rs::basic_interpreter::Interpreter;
                     let mut interpreter = Interpreter::new(program);
-                    println!("Intepreter created");
                     interpreter.run();
-                    println!("Program done");
                     process::exit(0);
                 }
                 Err(e) => {
