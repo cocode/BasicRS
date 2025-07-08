@@ -695,8 +695,8 @@ pub fn is_valid_identifier(name: &str) -> bool {
     // Check if it's a known function name (3+ characters, all uppercase)
     if chars.len() >= 3 && chars.iter().all(|c| c.is_ascii_uppercase()) {
         // Allow known built-in functions
-        let known_functions = ["ABS", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN", 
-                              "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$"];
+        let known_functions = ["ABS", "ASC", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN", 
+                              "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$"];
         if known_functions.contains(&name) {
             return true;
         }
@@ -711,7 +711,7 @@ pub fn is_valid_identifier(name: &str) -> bool {
     if chars.len() > 1 && chars[chars.len() - 1] == '$' && 
        chars[..chars.len()-1].iter().all(|c| c.is_ascii_uppercase()) {
         // Only allow known string functions
-        let known_string_functions = ["CHR$", "LEFT$", "MID$", "RIGHT$"];
+        let known_string_functions = ["CHR$", "LEFT$", "MID$", "RIGHT$", "SPACE$", "STR$"];
         if known_string_functions.contains(&name) {
             return true;
         }
