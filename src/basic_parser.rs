@@ -67,7 +67,7 @@ impl Parser {
             let stmt = self.parse_statement()?;
             statements.push(stmt.clone());
 
-            // After REM, consume rest of line
+            // After REM, consume rest of line TODO Not right, we already consume the line when parsing the REM
             if let Statement::Rem { .. } = stmt {
                 while !self.is_at_end() && !self.check(&Token::Newline) {
                     self.advance();
@@ -614,7 +614,11 @@ impl Parser {
     fn get_rest_of_line(&mut self) -> String {
         let mut comment = String::new();
         while !self.is_at_end() && !self.check(&Token::Newline) {
-            comment.push_str(&self.advance().to_string());
+            let token = self.advance();
+            match token {
+                Token::String(s) => comment.push_str(&s), // no extra quotes
+                other => comment.push_str(&other.to_string()),
+            }
             if !self.is_at_end() && !self.check(&Token::Newline) {
                 comment.push(' ');
             }
@@ -676,7 +680,7 @@ mod tests {
         assert_eq!(program.lines[0].statements.len(), 2);
 
         // Check LET statement
-        if let Statement::Let { var, value } = &program.lines[0].statements[0] {
+        if let Statement::Let { var, value: _ } = &program.lines[0].statements[0] {
             assert_eq!("X", var);
             // assert_eq!("1", self.evaluate_expression(value), "1");
         } else {
@@ -714,7 +718,7 @@ mod tests {
         assert_eq!(program.lines[0].statements.len(), 1);
         
         if let Statement::Rem { comment } = &program.lines[0].statements[0] {
-            assert_eq!(comment, "This is a comment");
+            assert_eq!(comment, "This is a comment : PRINT X");
         } else {
             panic!("Expected REM statement");
         }
