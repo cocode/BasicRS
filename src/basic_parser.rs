@@ -53,10 +53,12 @@ impl Parser {
                 self.advance();
                 Ok(n)
             }
-            _ => Err(BasicError::Syntax {
-                message: ".Expected line number at start of line".to_string(),
-                line_number: Some(self.current_line),
-            }),
+            _ => {
+                Err(BasicError::Syntax {
+                    message: ".Expected line number at start of line".to_string(),
+                    line_number: Some(self.current_line),
+                })
+            }
         }
     }
 
@@ -82,9 +84,7 @@ impl Parser {
             }
         }
 
-        if self.check(&Token::Newline) {
-            self.advance(); // Skip newline
-        }
+        // Don't advance past newline here - let the main parse() function handle it
 
         Ok(statements)
     }
@@ -120,10 +120,6 @@ impl Parser {
     }
     fn parse_statement(&mut self) -> Result<Statement, BasicError> {
         let token = self.peek().cloned();
-        if let Some(t) = &token {
-            println!("Token is {}", t);
-        }
-
         match self.peek() {
             Some(Token::Let) => {
                 self.advance();
@@ -270,6 +266,11 @@ impl Parser {
                     } else {
                         break;
                     }
+                }
+                
+                // Consume the newline if present
+                if self.check(&Token::Newline) {
+                    self.advance();
                 }
 
                 Ok(Statement::Read { vars })
