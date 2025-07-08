@@ -1,4 +1,4 @@
-# BasicRS
+#  <img src="images/logo2.png" alt="Logo" width="50" height="25"> BasicRS
 
 BasicRS is a Rust implementation of a BASIC Interpreter 
 
