@@ -16,6 +16,8 @@ cargo test --test run_tests
 
 cargo run -- test_suite/hello.bas
 
+## ./run_all_tests.sh
+A shell script which runs tests and summarizes results. Does the same as cargo test, but more readable.
 
 ## Terminology
 A LINE is made up of multiple STATEMENTS, each one beginning with a KEYWORD.
