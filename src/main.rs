@@ -17,9 +17,6 @@ fn main() {
             let mut lexer = Lexer::new(&source);
 
             let tokens = lexer.tokenize().expect("Lexing failed");
-            for token in &tokens {
-                println!("T: {}", token);
-            }
             let mut parser = Parser::new(tokens);
             match parser.parse() {
                 Ok(program) => {
