@@ -141,7 +141,9 @@ impl Interpreter {
             // Execute statement
             match self.execute_statement(&current_stmt) {
                 Ok(()) => {
-                    self.advance_location();
+                    if current_stmt.should_advance_location() {
+                        self.advance_location();
+                    }
                 }
                 Err(err) => {
                     self.run_status = match err {

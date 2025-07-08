@@ -270,6 +270,17 @@ pub enum Statement {
 }
 
 impl Statement {
+        pub fn should_advance_location(&self) -> bool {
+        match self {
+            Statement::Goto { .. } => false,
+            Statement::Gosub { .. } => false,
+            Statement::Return => false,
+            Statement::End => false,
+            Statement::Stop => false,
+            _ => true,
+        }
+    }
+
     pub fn new_let(var: String, value: Expression) -> Self {
         Statement::Let { var, value }
     }
