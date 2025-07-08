@@ -468,6 +468,9 @@ impl Interpreter {
             })
         }
     }
+    fn get_symbol_table(&self) -> &SymbolTable {
+        return &self.symbols
+    }
 
     fn put_symbol(&mut self, name: String, value: SymbolValue) {
         // Always put in current scope
@@ -520,6 +523,8 @@ impl Interpreter {
 
 #[cfg(test)]
 mod tests {
+    use crate::basic_lexer::Lexer;
+    use crate::basic_parser::Parser;
     use super::*;
     use crate::basic_types::{Statement, Expression, ArrayDecl};
 
@@ -557,10 +562,16 @@ mod tests {
             (30, vec![Statement::new_let("Y".to_string(), Expression::new_number(2.0))]),
             (40, vec![Statement::new_let("Z".to_string(), Expression::new_number(3.0))]),
         ]);
-        
+
+        println!("Program has {} lines.", program.lines.len());
+        println!("{}", program);
         let mut interpreter = Interpreter::new(program);
         interpreter.run();
-        
+        println!("SYMBOLLLLLLS");
+        let symbols = interpreter.get_symbol_table();
+        for (name, value) in symbols.dump() {
+            println!("{} = {}", name, value);
+        }
         assert_eq!(interpreter.get_symbol("X")?, SymbolValue::Number(1.0));
         assert!(interpreter.get_symbol("Y").is_err()); // Line 30 should be skipped
         assert_eq!(interpreter.get_symbol("Z")?, SymbolValue::Number(3.0));
@@ -570,22 +581,19 @@ mod tests {
 
     #[test]
     fn test_rem_statement() -> Result<(), BasicError> {
-        let program = create_test_program(vec![
-            (10, vec![Statement::new_let("X".to_string(), Expression::new_number(1.0))]),
-            (20, vec![
-                Statement::new_rem("This is a comment".to_string()),
-                Statement::new_let("Y".to_string(), Expression::new_number(2.0)), // Should be ignored
-            ]),
-            (30, vec![Statement::new_let("Z".to_string(), Expression::new_number(3.0))]),
-        ]);
-        
+        let source = "10 X=1\n20 REM This is a comment:Y=2\n30LET Z=3"; // TODO remove space before Z
+        let mut lexer = Lexer::new(&source);
+        let tokens = lexer.tokenize().expect("Lexing failed");
+        for token in &tokens {
+            println!("T: {}", token);
+        }
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse()?; // ← You need this line to obtain the program
         let mut interpreter = Interpreter::new(program);
         interpreter.run();
-        
         assert_eq!(interpreter.get_symbol("X")?, SymbolValue::Number(1.0));
         assert!(interpreter.get_symbol("Y").is_err()); // Should be skipped after REM
         assert_eq!(interpreter.get_symbol("Z")?, SymbolValue::Number(3.0));
-        
         Ok(())
     }
 
