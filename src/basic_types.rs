@@ -231,6 +231,19 @@ pub struct ArrayDecl {
     pub dimensions: Vec<usize>,
 }
 
+impl fmt::Display for ArrayDecl {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}(", self.name)?;
+        for (i, dim) in self.dimensions.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", dim)?;
+        }
+        write!(f, ")")
+    }
+}
+
 // Statement types
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -330,6 +343,104 @@ impl Statement {
     }
 }
 
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Statement::*;
+
+        match self {
+            Let { var, value } => write!(f, "LET {} = {}", var, value),
+            Print { expressions } => {
+                write!(f, "PRINT")?;
+                for (i, expr) in expressions.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", expr)?;
+                }
+                Ok(())
+            }
+            Input { var } => write!(f, "INPUT {}", var),
+            If { condition, then_stmt, else_stmt } => {
+                write!(f, "IF {} THEN {}", condition, then_stmt)?;
+                if let Some(e) = else_stmt {
+                    write!(f, " ELSE {}", e)?;
+                }
+                Ok(())
+            }
+            For { var, start, stop, step } => {
+                write!(f, "FOR {} = {} TO {}", var, start, stop)?;
+                if let Some(step) = step {
+                    write!(f, " STEP {}", step)?;
+                }
+                Ok(())
+            }
+            Next { var } => write!(f, "NEXT {}", var),
+            Goto { line } => write!(f, "GOTO {}", line),
+            Gosub { line } => write!(f, "GOSUB {}", line),
+            Return => write!(f, "RETURN"),
+            End => write!(f, "END"),
+            Stop => write!(f, "STOP"),
+            Rem { comment } => write!(f, "REM {}", comment),
+            Data { values } => {
+                write!(f, "DATA")?;
+                for (i, v) in values.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", v)?;
+                }
+                Ok(())
+            }
+            Read { vars } => {
+                write!(f, "READ")?;
+                for (i, v) in vars.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", v)?;
+                }
+                Ok(())
+            }
+            Restore { line } => {
+                write!(f, "RESTORE")?;
+                if let Some(n) = line {
+                    write!(f, " {}", n)?;
+                }
+                Ok(())
+            }
+            Dim { arrays } => {
+                write!(f, "DIM")?;
+                for (i, array) in arrays.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", array)?;
+                }
+                Ok(())
+            }
+            OnGoto { expr, line_numbers } => {
+                write!(f, "ON {} GOTO ", expr)?;
+                for (i, n) in line_numbers.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", n)?;
+                }
+                Ok(())
+            }
+            Def { name, params, expr } => {
+                write!(f, "DEF {}(", name)?;
+                for (i, p) in params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", p)?;
+                }
+                write!(f, ") = {}", expr)
+            }
+        }
+    }
+}
 // Expression types
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionType {
@@ -475,7 +586,18 @@ pub struct ProgramLine {
     pub source: String,
     pub statements: Vec<Statement>,
 }
-
+impl fmt::Display for ProgramLine {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} ", self.line_number)?;
+        for (i, stmt) in self.statements.iter().enumerate() {
+            write!(f, "{}", stmt)?;
+            if i < self.statements.len() - 1 {
+                write!(f, " : ")?; // BASIC separates multiple statements with colons
+            }
+        }
+        Ok(())
+    }
+}
 #[derive(Debug, Clone)]
 pub struct Program {
     pub lines: Vec<ProgramLine>,
@@ -503,6 +625,15 @@ impl Program {
         if let Ok(pos) = self.lines.binary_search_by_key(&line_number, |l| l.line_number) {
             self.lines.remove(pos);
         }
+    }
+}
+
+impl fmt::Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for line in &self.lines {
+            writeln!(f, "{}", line)?;
+        }
+        Ok(())
     }
 }
 
