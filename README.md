@@ -21,14 +21,6 @@ I have achieved that goal.
 
 cargo run -- test_suite/hello.bas
 
+OR 
 
-## Terminology
-A LINE is made up of multiple STATEMENTS, each one beginning with a KEYWORD.
-
-### LINE
-    100 PRINT X:GOTO 200
-### STATEMENTS
-    "PRINT X" and "GOTO 100"
-### KEYWORDS
-    "PRINT", and "GOTO"
-
+target/debug/basic_rs test_suite/if.bas
