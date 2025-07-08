@@ -139,11 +139,24 @@ impl Parser {
                 // Parse comma/semicolon-separated expressions
                 if !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
                     loop {
-                        expressions.push(self.parse_expression()?);
-                        
+                        // Parse expression (or empty string if just spacing)
                         if self.check(&Token::Comma) || self.check(&Token::Semicolon) {
+                            // Empty expression (just spacing)
+                            expressions.push(Expression::new_string("".to_string()));
                             self.advance();
                         } else {
+                            // Parse actual expression
+                            expressions.push(self.parse_expression()?);
+                            
+                            if self.check(&Token::Comma) || self.check(&Token::Semicolon) {
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        // If we're at the end or hit a colon/newline, stop
+                        if self.is_at_end() || self.check(&Token::Colon) || self.check(&Token::Newline) {
                             break;
                         }
                     }
@@ -161,24 +174,27 @@ impl Parser {
                 let condition = self.parse_expression()?;
                 self.consume(&Token::Then, "Expected THEN after condition")?;
 
-                let then_stmt = if self.check(&Token::Goto) {
-//                    self.advance();
-                    Box::new(self.parse_statement()?)
+                // Parse THEN branch
+                let then_statements = if self.check(&Token::Goto) {
+                    // Handle implied GOTO
+                    vec![self.parse_statement()?]
                 } else if let Some(Token::Number(n)) = self.peek().cloned() {
-                    // Implied GOTO with line number
+                    // Handle implied GOTO with line number
                     self.advance();
-                    Box::new(Statement::Goto { line: n.parse().unwrap() })
+                    vec![Statement::Goto { line: n.parse().unwrap() }]
                 } else {
-                    Box::new(self.parse_statement()?)
+                    // Parse multiple statements until ELSE or end of line
+                    self.parse_statement_block()?
                 };
 
-                let else_stmt = if self.match_any(&[Token::Else]) {
-                    Some(Box::new(self.parse_statement()?))
+                // Parse ELSE branch (optional)
+                let else_statements = if self.match_any(&[Token::Else]) {
+                    Some(self.parse_statement_block()?)
                 } else {
                     None
                 };
 
-                Ok(Statement::If { condition, then_stmt, else_stmt })
+                Ok(Statement::If { condition, then_statements, else_statements })
             }
             Some(Token::For) => {
                 self.advance();
@@ -300,6 +316,47 @@ impl Parser {
                 }
 
                 Ok(Statement::Dim { arrays })
+            }
+            Some(Token::On) => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                
+                if self.check(&Token::Goto) {
+                    self.advance();
+                    let mut line_numbers = Vec::new();
+                    while !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
+                        let line = self.parse_number()? as usize;
+                        line_numbers.push(line);
+
+                        if self.check(&Token::Comma) {
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    Ok(Statement::OnGoto { expr, line_numbers })
+                } else if self.check(&Token::Gosub) {
+                    self.advance();
+                    let mut line_numbers = Vec::new();
+                    while !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
+                        let line = self.parse_number()? as usize;
+                        line_numbers.push(line);
+
+                        if self.check(&Token::Comma) {
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    Ok(Statement::OnGosub { expr, line_numbers })
+                } else {
+                    Err(BasicError::Syntax {
+                        message: "Expected GOTO or GOSUB after ON expression".to_string(),
+                        line_number: Some(self.current_line),
+                    })
+                }
             }
             // Default: Assume LET if line starts with an identifier
             Some(Token::Identifier(_)) => {
@@ -591,6 +648,22 @@ impl Parser {
             }
         }
         comment
+    }
+
+    fn parse_statement_block(&mut self) -> Result<Vec<Statement>, BasicError> {
+        let mut statements = Vec::new();
+        
+        while !self.is_at_end() && !self.check(&Token::Else) && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
+            statements.push(self.parse_statement()?);
+            
+            if self.check(&Token::Colon) {
+                self.advance(); // Skip colon separator
+            } else {
+                break;
+            }
+        }
+        
+        Ok(statements)
     }
 }
 

@@ -23,6 +23,7 @@ pub enum Token {
     Read,
     Restore,
     Dim,
+    On,
     
     // Operators
     Plus,
@@ -80,6 +81,7 @@ impl fmt::Display for Token {
             Token::Read => write!(f, "READ"),
             Token::Restore => write!(f, "RESTORE"),
             Token::Dim => write!(f, "DIM"),
+            Token::On => write!(f, "ON"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
             Token::Star => write!(f, "*"),
@@ -250,7 +252,7 @@ pub enum Statement {
     Let { var: Expression, value: Expression },
     Print { expressions: Vec<Expression> },
     Input { var: String },
-    If { condition: Expression, then_stmt: Box<Statement>, else_stmt: Option<Box<Statement>> },
+    If { condition: Expression, then_statements: Vec<Statement>, else_statements: Option<Vec<Statement>> },
     For { var: String, start: Expression, stop: Expression, step: Option<Expression> },
     Next { var: String },
     Goto { line: usize },
@@ -266,6 +268,7 @@ pub enum Statement {
         arrays: Vec<ArrayDecl>,
     },
     OnGoto { expr: Expression, line_numbers: Vec<usize> },
+    OnGosub { expr: Expression, line_numbers: Vec<usize> },
     Def { name: String, params: Vec<String>, expr: Expression },
 }
 
@@ -292,8 +295,8 @@ impl Statement {
         Statement::Input { var }
     }
 
-    pub fn new_if(condition: Expression, then_stmt: Box<Statement>, else_stmt: Option<Box<Statement>>) -> Self {
-        Statement::If { condition, then_stmt, else_stmt }
+    pub fn new_if(condition: Expression, then_statements: Vec<Statement>, else_statements: Option<Vec<Statement>>) -> Self {
+        Statement::If { condition, then_statements, else_statements }
     }
 
     pub fn new_for(var: String, start: Expression, stop: Expression, step: Option<Expression>) -> Self {
@@ -349,6 +352,10 @@ impl Statement {
         Statement::OnGoto { expr, line_numbers }
     }
 
+    pub fn new_on_gosub(expr: Expression, line_numbers: Vec<usize>) -> Self {
+        Statement::OnGosub { expr, line_numbers }
+    }
+
     pub fn new_def(name: String, params: Vec<String>, expr: Expression) -> Self {
         Statement::Def { name, params, expr }
     }
@@ -371,10 +378,22 @@ impl fmt::Display for Statement {
                 Ok(())
             }
             Input { var } => write!(f, "INPUT {}", var),
-            If { condition, then_stmt, else_stmt } => {
-                write!(f, "IF {} THEN {}", condition, then_stmt)?;
-                if let Some(e) = else_stmt {
-                    write!(f, " ELSE {}", e)?;
+            If { condition, then_statements, else_statements } => {
+                write!(f, "IF {} THEN ", condition)?;
+                for (i, stmt) in then_statements.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " : ")?;
+                    }
+                    write!(f, "{}", stmt)?;
+                }
+                if let Some(else_stmts) = else_statements {
+                    write!(f, " ELSE ")?;
+                    for (i, stmt) in else_stmts.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " : ")?;
+                        }
+                        write!(f, "{}", stmt)?;
+                    }
                 }
                 Ok(())
             }
@@ -431,6 +450,16 @@ impl fmt::Display for Statement {
             }
             OnGoto { expr, line_numbers } => {
                 write!(f, "ON {} GOTO ", expr)?;
+                for (i, n) in line_numbers.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", n)?;
+                }
+                Ok(())
+            }
+            OnGosub { expr, line_numbers } => {
+                write!(f, "ON {} GOSUB ", expr)?;
                 for (i, n) in line_numbers.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;

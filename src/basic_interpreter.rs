@@ -223,14 +223,20 @@ impl Interpreter {
                 self.put_symbol(var.clone(), value);
                 Ok(())
             }
-            Statement::If { condition, then_stmt, else_stmt } => {
+            Statement::If { condition, then_statements, else_statements } => {
                 let result = self.evaluate_expression(condition)?;
                 match result {
                     SymbolValue::Number(n) => {
                         if n != 0.0 {
-                            self.execute_statement(then_stmt)?;
-                        } else if let Some(else_s) = else_stmt {
-                            self.execute_statement(else_s)?;
+                            // Execute THEN branch
+                            for stmt in then_statements {
+                                self.execute_statement(&stmt)?;
+                            }
+                        } else if let Some(else_stmts) = else_statements {
+                            // Execute ELSE branch
+                            for stmt in else_stmts {
+                                self.execute_statement(&stmt)?;
+                            }
                         }
                     }
                     _ => return Err(BasicError::Type {
@@ -415,6 +421,22 @@ impl Interpreter {
                 
                 if value <= line_numbers.len() {
                     self.goto_line(line_numbers[value - 1])?;
+                }
+                Ok(())
+            }
+            Statement::OnGosub { expr, line_numbers } => {
+                let value = match self.evaluate_expression(expr)? {
+                    SymbolValue::Number(n) if n >= 1.0 && n.fract() == 0.0 => n as usize,
+                    _ => return Err(BasicError::Runtime {
+                        message: "ON index must be a positive integer".to_string(),
+                        line_number: None,
+                    })
+                };
+                
+                if value <= line_numbers.len() {
+                    let return_loc = self.location;
+                    self.goto_line(line_numbers[value - 1])?;
+                    self.gosub_stack.push(return_loc);
                 }
                 Ok(())
             }
