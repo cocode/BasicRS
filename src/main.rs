@@ -14,15 +14,24 @@ fn main() {
     let program_path = &args[1];
     match fs::read_to_string(program_path) {
         Ok(source) => {
-            let mut lexer = Lexer::new(&source);            let tokens = lexer.tokenize().expect("Lexing failed");
+            let mut lexer = Lexer::new(&source);
+
+            let tokens = lexer.tokenize().expect("Lexing failed");
+            for token in &tokens {
+                println!("T: {}", token);
+            }
             let mut parser = Parser::new(tokens);
             match parser.parse() {
                 Ok(program) => {
                     // TODO: Run the program
                     println!("Program parsed successfully!");
+                    println!("Program has {} lines.", program.lines.len());
+                    println!("{}", program);
                     use basic_rs::basic_interpreter::Interpreter;
                     let mut interpreter = Interpreter::new(program);
+                    println!("Intepreter created");
                     interpreter.run();
+                    println!("Program done");
                     process::exit(0);
                 }
                 Err(e) => {
@@ -36,4 +45,5 @@ fn main() {
             process::exit(1);
         }
     }
+    println!("All done.")
 }
