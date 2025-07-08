@@ -45,5 +45,4 @@ fn main() {
             process::exit(1);
         }
     }
-    println!("All done.")
 }
