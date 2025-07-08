@@ -129,6 +129,7 @@ impl<'a> Lexer<'a> {
                         "RESTORE" => tokens.push(Token::Restore),
                         "DIM" => tokens.push(Token::Dim),
                         "ON" => tokens.push(Token::On),
+                        "DEF" => tokens.push(Token::Def),
                         "AND" => tokens.push(Token::And),
                         "OR" => tokens.push(Token::Or),
                         "NOT" => tokens.push(Token::Not),

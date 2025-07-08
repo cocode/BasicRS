@@ -358,6 +358,30 @@ impl Parser {
                     })
                 }
             }
+            Some(Token::Def) => {
+                self.advance();
+                let name = self.parse_identifier()?;
+                self.consume(&Token::LeftParen, "Expected '(' after function name")?;
+                
+                let mut params = Vec::new();
+                while !self.check(&Token::RightParen) {
+                    let param = self.parse_identifier()?;
+                    params.push(param);
+                    
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+                
+                self.consume(&Token::RightParen, "Expected ')' after parameters")?;
+                self.consume(&Token::Equal, "Expected '=' after parameters")?;
+                
+                let expr = self.parse_expression()?;
+                
+                Ok(Statement::Def { name, params, expr })
+            }
             // Default: Assume LET if line starts with an identifier
             Some(Token::Identifier(_)) => {
                 // Parse as expression to handle both variables and arrays

@@ -24,6 +24,7 @@ pub enum Token {
     Restore,
     Dim,
     On,
+    Def,
     
     // Operators
     Plus,
@@ -82,6 +83,7 @@ impl fmt::Display for Token {
             Token::Restore => write!(f, "RESTORE"),
             Token::Dim => write!(f, "DIM"),
             Token::On => write!(f, "ON"),
+            Token::Def => write!(f, "DEF"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
             Token::Star => write!(f, "*"),
@@ -692,10 +694,15 @@ pub fn is_valid_identifier(name: &str) -> bool {
     
     // Check if it's a known function name (3+ characters, all uppercase)
     if chars.len() >= 3 && chars.iter().all(|c| c.is_ascii_uppercase()) {
-        // Only allow known function names
+        // Allow known built-in functions
         let known_functions = ["ABS", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN", 
                               "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$"];
         if known_functions.contains(&name) {
+            return true;
+        }
+        
+        // Allow BASIC function names (FN + letter pattern like FNA, FNB, FNC)
+        if chars.len() == 3 && chars[0] == 'F' && chars[1] == 'N' && chars[2].is_ascii_uppercase() {
             return true;
         }
     }
