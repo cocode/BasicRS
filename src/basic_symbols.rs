@@ -186,3 +186,102 @@ impl SymbolTable {
         result
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::basic_types::{Expression, SymbolValue};
+
+    #[test]
+    fn test_basic_symbols() {
+        let mut table = SymbolTable::new();
+        table.put_symbol("A".to_string(), SymbolValue::Number(1.0));
+        let val = table.get_symbol("A").unwrap();
+        assert_eq!(SymbolValue::Number(1.0), *val);
+        table.put_symbol("B".to_string(), SymbolValue::Number(99.0));
+
+        let dump = table.dump();
+        assert_eq!(dump.len(), 2);
+        assert_eq!(dump["A"], SymbolValue::Number(1.0));
+        assert_eq!(dump["B"], SymbolValue::Number(99.0));
+    }
+
+    #[test]
+    fn test_create_array_1d_number() {
+        let mut table = SymbolTable::new();
+        table.create_array("A".to_string(), vec![5]).unwrap();
+        let val = table.get_symbol("A").unwrap();
+        match val {
+            SymbolValue::Array1DNumber(v) => assert_eq!(v.len(), 5),
+            _ => panic!("Expected 1D number array"),
+        }
+    }
+
+    #[test]
+    fn test_create_array_2d_string() {
+        let mut table = SymbolTable::new();
+        table.create_array("S$".to_string(), vec![2, 3]).unwrap();
+        let val = table.get_symbol("S$").unwrap();
+        match val {
+            SymbolValue::Array2DString(v) => {
+                assert_eq!(v.len(), 2);
+                assert_eq!(v[0].len(), 3);
+            }
+            _ => panic!("Expected 2D string array"),
+        }
+    }
+
+    #[test]
+    fn test_get_array_element_valid() {
+        let mut table = SymbolTable::new();
+        table.create_array("A".to_string(), vec![3]).unwrap();
+        let val = table.get_array_element("A", &[1]).unwrap();
+        assert_eq!(val, SymbolValue::Number(0.0));
+    }
+
+    #[test]
+    fn test_get_array_element_invalid_index() {
+        let mut table = SymbolTable::new();
+        table.create_array("A".to_string(), vec![2]).unwrap();
+        let result = table.get_array_element("A", &[5]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_define_function() {
+        let mut table = SymbolTable::new();
+        let expr = Expression::new_number(42.0);
+        table.define_function("F".to_string(), vec!["X".to_string()], expr.clone()).unwrap();
+
+        let val = table.get_symbol("F").unwrap();
+        match val {
+            SymbolValue::FunctionDef { param, expr: e } => {
+                assert_eq!(param, &vec!["X".to_string()]);
+                assert_eq!(e, &expr);
+            }
+            _ => panic!("Expected FunctionDef"),
+        }
+    }
+
+    #[test]
+    fn test_nested_scope_lookup() {
+        let mut root = SymbolTable::new();
+        root.put_symbol("X".to_string(), SymbolValue::Number(5.0));
+        let nested = root.get_nested_scope();
+        assert_eq!(nested.get_symbol("X"), Some(&SymbolValue::Number(5.0)));
+    }
+
+    #[test]
+    fn test_dump_merges_with_parent() {
+        let mut parent = SymbolTable::new();
+        parent.put_symbol("A".to_string(), SymbolValue::Number(1.0));
+
+        let mut child = parent.get_nested_scope();
+        child.put_symbol("B".to_string(), SymbolValue::Number(2.0));
+
+        let dump = child.dump();
+        assert_eq!(dump.len(), 2);
+        assert_eq!(dump["A"], SymbolValue::Number(1.0));
+        assert_eq!(dump["B"], SymbolValue::Number(2.0));
+    }
+}
