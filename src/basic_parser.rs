@@ -136,12 +136,12 @@ impl Parser {
                 self.advance();
                 let mut expressions = Vec::new();
                 
-                // Parse comma-separated expressions
+                // Parse comma/semicolon-separated expressions
                 if !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
                     loop {
                         expressions.push(self.parse_expression()?);
                         
-                        if self.check(&Token::Comma) {
+                        if self.check(&Token::Comma) || self.check(&Token::Semicolon) {
                             self.advance();
                         } else {
                             break;

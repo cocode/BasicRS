@@ -586,9 +586,9 @@ mod tests {
         let source = "10 X=1\n20 REM This is a comment:Y=2\n30LET Z=3"; // TODO remove space before Z
         let mut lexer = Lexer::new(&source);
         let tokens = lexer.tokenize().expect("Lexing failed");
-        for token in &tokens {
-            println!("T: {}", token);
-        }
+        // for token in &tokens {
+        //     println!("T: {}", token);
+        // }
         let mut parser = Parser::new(tokens);
         let program = parser.parse()?; // ← You need this line to obtain the program
         let mut interpreter = Interpreter::new(program);

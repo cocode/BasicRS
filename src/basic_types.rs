@@ -661,14 +661,25 @@ pub fn is_valid_identifier(name: &str) -> bool {
         return false;
     }
     
-    // If there's a second character, it must be either a digit or $
+    // Check if it's all uppercase letters (function name)
+    if chars.iter().all(|c| c.is_ascii_uppercase()) {
+        return true;
+    }
+    
+    // Check if it ends with $ (string function)
+    if chars.len() > 1 && chars[chars.len() - 1] == '$' && 
+       chars[..chars.len()-1].iter().all(|c| c.is_ascii_uppercase()) {
+        return true;
+    }
+    
+    // Standard BASIC variable rules: 1-2 characters, optional digit or $
     if chars.len() > 1 {
         let last_char = chars[chars.len() - 1];
         if !last_char.is_ascii_digit() && last_char != '$' {
             return false;
         }
         
-        // If there are more than 2 characters, it's invalid
+        // If there are more than 2 characters, it's invalid for variables
         if chars.len() > 2 {
             return false;
         }
