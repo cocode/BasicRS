@@ -54,7 +54,7 @@ impl Parser {
                 Ok(n)
             }
             _ => Err(BasicError::Syntax {
-                message: "Expected line number at start of line".to_string(),
+                message: ".Expected line number at start of line".to_string(),
                 line_number: Some(self.current_line),
             }),
         }
@@ -119,6 +119,11 @@ impl Parser {
         }
     }
     fn parse_statement(&mut self) -> Result<Statement, BasicError> {
+        let token = self.peek().cloned();
+        if let Some(t) = &token {
+            println!("Token is {}", t);
+        }
+
         match self.peek() {
             Some(Token::Let) => {
                 self.advance();
@@ -188,12 +193,24 @@ impl Parser {
                 self.advance();
                 let condition = self.parse_expression()?;
                 self.consume(&Token::Then, "Expected THEN after condition")?;
-                let then_stmt = Box::new(self.parse_statement()?);
+
+                let then_stmt = if self.check(&Token::Goto) {
+//                    self.advance();
+                    Box::new(self.parse_statement()?)
+                } else if let Some(Token::Number(n)) = self.peek().cloned() {
+                    // Implied GOTO with line number
+                    self.advance();
+                    Box::new(Statement::Goto { line: n.parse().unwrap() })
+                } else {
+                    Box::new(self.parse_statement()?)
+                };
+
                 let else_stmt = if self.match_any(&[Token::Else]) {
                     Some(Box::new(self.parse_statement()?))
                 } else {
                     None
                 };
+
                 Ok(Statement::If { condition, then_stmt, else_stmt })
             }
             Some(Token::For) => {
