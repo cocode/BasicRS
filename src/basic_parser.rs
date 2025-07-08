@@ -135,53 +135,20 @@ impl Parser {
             Some(Token::Print) => {
                 self.advance();
                 let mut expressions = Vec::new();
-                let mut current_expression = String::new();
-                let mut in_string = false;
                 
-                while !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
-                    if let Some(token) = self.peek() {
-                        match token {
-                            Token::String(s) => {
-                                if !in_string {
-                                    current_expression.push_str(s);
-                                    in_string = true;
-                                }
-                                self.advance();
-                            }
-                            Token::Identifier(s) => {
-                                if in_string {
-                                    current_expression.push(' ');
-                                }
-                                current_expression.push_str(s);
-                                in_string = false;
-                                self.advance();
-                            }
-                            Token::Number(n) => {
-                                if in_string {
-                                    current_expression.push(' ');
-                                }
-                                current_expression.push_str(&n.to_string());
-                                in_string = false;
-                                self.advance();
-                            }
-                            Token::Plus => {
-                                self.advance();
-                            }
-                            Token::Comma => {
-                                if !current_expression.is_empty() {
-                                    expressions.push(Expression::new_string(current_expression.clone()));
-                                    current_expression.clear();
-                                }
-                                in_string = false;
-                                self.advance();
-                            }
-                            _ => break,
+                // Parse comma-separated expressions
+                if !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
+                    loop {
+                        expressions.push(self.parse_expression()?);
+                        
+                        if self.check(&Token::Comma) {
+                            self.advance();
+                        } else {
+                            break;
                         }
                     }
                 }
-                if !current_expression.is_empty() {
-                    expressions.push(Expression::new_string(current_expression));
-                }
+                
                 Ok(Statement::Print { expressions })
             }
             Some(Token::Input) => {
