@@ -661,15 +661,24 @@ pub fn is_valid_identifier(name: &str) -> bool {
         return false;
     }
     
-    // Check if it's all uppercase letters (function name)
-    if chars.iter().all(|c| c.is_ascii_uppercase()) {
-        return true;
+    // Check if it's a known function name (3+ characters, all uppercase)
+    if chars.len() >= 3 && chars.iter().all(|c| c.is_ascii_uppercase()) {
+        // Only allow known function names
+        let known_functions = ["ABS", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN", 
+                              "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$"];
+        if known_functions.contains(&name) {
+            return true;
+        }
     }
     
     // Check if it ends with $ (string function)
     if chars.len() > 1 && chars[chars.len() - 1] == '$' && 
        chars[..chars.len()-1].iter().all(|c| c.is_ascii_uppercase()) {
-        return true;
+        // Only allow known string functions
+        let known_string_functions = ["CHR$", "LEFT$", "MID$", "RIGHT$"];
+        if known_string_functions.contains(&name) {
+            return true;
+        }
     }
     
     // Standard BASIC variable rules: 1-2 characters, optional digit or $
