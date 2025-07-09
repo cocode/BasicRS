@@ -388,7 +388,7 @@ impl<'a> Lexer<'a> {
         // Built-in functions
         let functions = vec![
             "ABS", "ASC", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN",
-            "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$"
+            "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$", "TAB"
         ];
         
         // Try to match the longest keyword/function first
@@ -448,12 +448,7 @@ impl<'a> Lexer<'a> {
             for (pattern, min_len) in patterns {
                 // Try longest match first for each pattern
                 for len in (min_len..=input.len()).rev() {
-                    println!("Pattern> {}: {:?}  input='{}' len={}", x, pattern, input, len);
                     let candidate = &input[..len];
-                    println!("  candidate='{}' matches_pattern={} is_valid={}", 
-                             candidate, 
-                             self.matches_pattern(candidate, pattern),
-                             is_valid_identifier(candidate));
                     if self.matches_pattern(candidate, pattern) && is_valid_identifier(candidate) {
                         return Some((candidate.to_string(), len));
                     }
@@ -702,5 +697,56 @@ mod tests {
         assert_eq!(tokens[15], Token::Colon);
         assert_eq!(tokens[16], Token::Goto);
         assert_eq!(tokens[17], Token::Number("980".to_string()));
+    }
+
+    #[test]
+    fn test_tab_function() {
+        // Test TAB function recognition
+        let mut lexer = Lexer::new("PRINT TAB(8)");
+        let tokens = lexer.tokenize().unwrap();
+        
+        println!("Tokens for 'PRINT TAB(8)':");
+        for (i, token) in tokens.iter().enumerate() {
+            println!("  {}: {:?}", i, token);
+        }
+        
+        assert_eq!(tokens[0], Token::Print);
+        assert_eq!(tokens[1], Token::Identifier("TAB".to_string()));
+        assert_eq!(tokens[2], Token::LeftParen);
+        assert_eq!(tokens[3], Token::Number("8".to_string()));
+        assert_eq!(tokens[4], Token::RightParen);
+    }
+
+    #[test]
+    fn test_complex_print_statement() {
+        // Test the specific failing line: 2840 PRINTTAB(8);:R1=I:GOSUB8790:PRINTG2$;" REPAIR COMPLETED."
+        let mut lexer = Lexer::new("2840 PRINTTAB(8);:R1=I:GOSUB8790:PRINTG2$;\" REPAIR COMPLETED.\"");
+        let tokens = lexer.tokenize().unwrap();
+        
+        println!("Tokens for complex PRINT statement:");
+        for (i, token) in tokens.iter().enumerate() {
+            println!("  {}: {:?}", i, token);
+        }
+        
+        // Should parse as: LineNumber(2840), Print, Identifier("TAB"), LeftParen, Number("8"), RightParen, Semicolon, Colon, Identifier("R1"), Equal, Identifier("I"), Colon, Gosub, Number("8790"), Colon, Print, Identifier("G2$"), Semicolon, String(" REPAIR COMPLETED.")
+        assert_eq!(tokens[0], Token::LineNumber(2840));
+        assert_eq!(tokens[1], Token::Print);
+        assert_eq!(tokens[2], Token::Identifier("TAB".to_string()));
+        assert_eq!(tokens[3], Token::LeftParen);
+        assert_eq!(tokens[4], Token::Number("8".to_string()));
+        assert_eq!(tokens[5], Token::RightParen);
+        assert_eq!(tokens[6], Token::Semicolon);
+        assert_eq!(tokens[7], Token::Colon);
+        assert_eq!(tokens[8], Token::Identifier("R1".to_string()));
+        assert_eq!(tokens[9], Token::Equal);
+        assert_eq!(tokens[10], Token::Identifier("I".to_string()));
+        assert_eq!(tokens[11], Token::Colon);
+        assert_eq!(tokens[12], Token::Gosub);
+        assert_eq!(tokens[13], Token::Number("8790".to_string()));
+        assert_eq!(tokens[14], Token::Colon);
+        assert_eq!(tokens[15], Token::Print);
+        assert_eq!(tokens[16], Token::Identifier("G2$".to_string()));
+        assert_eq!(tokens[17], Token::Semicolon);
+        assert_eq!(tokens[18], Token::String(" REPAIR COMPLETED.".to_string()));
     }
 } 
