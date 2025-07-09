@@ -985,4 +985,101 @@ mod tests {
         assert_eq!(program.lines[0].line_number, 2840);
         assert_eq!(program.lines[0].statements.len(), 4); // PRINT, LET, GOSUB, PRINT
     }
+
+    #[test]
+    fn test_parse_complex_expression() {
+        let tokens = vec![
+            Token::LineNumber(10),
+            Token::Let,
+            Token::Identifier("X".to_string()),
+            Token::Equal,
+            Token::Number("1".to_string()),
+            Token::Plus,
+            Token::Number("2".to_string()),
+            Token::Star,
+            Token::Number("3".to_string()),
+            Token::Newline,
+        ];
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse().unwrap();
+
+        assert_eq!(program.lines.len(), 1);
+        assert_eq!(program.lines[0].line_number, 10);
+        assert_eq!(program.lines[0].statements.len(), 1);
+
+        let stmt = &program.lines[0].statements[0];
+        if let Statement::Let { var, value } = stmt {
+            if let Expression { expr_type: ExpressionType::Variable(name), .. } = var {
+                assert_eq!(name, "X");
+            } else {
+                panic!("Expected variable expression");
+            }
+            
+            // The expression should be parsed as 1 + (2 * 3) due to operator precedence
+            if let Expression { expr_type: ExpressionType::BinaryOp { op, left, right }, .. } = value {
+                assert_eq!(op, "+");
+                // Left side should be 1
+                if let Expression { expr_type: ExpressionType::Number(n), .. } = &**left {
+                    assert_eq!(*n, 1.0);
+                } else {
+                    panic!("Expected number 1");
+                }
+                // Right side should be 2 * 3
+                if let Expression { expr_type: ExpressionType::BinaryOp { op, left, right }, .. } = &**right {
+                    assert_eq!(op, "*");
+                    if let Expression { expr_type: ExpressionType::Number(n), .. } = &**left {
+                        assert_eq!(*n, 2.0);
+                    } else {
+                        panic!("Expected number 2");
+                    }
+                    if let Expression { expr_type: ExpressionType::Number(n), .. } = &**right {
+                        assert_eq!(*n, 3.0);
+                    } else {
+                        panic!("Expected number 3");
+                    }
+                } else {
+                    panic!("Expected multiplication expression");
+                }
+            } else {
+                panic!("Expected binary operation");
+            }
+        } else {
+            panic!("Expected LET statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_function_call() {
+        let tokens = vec![
+            Token::LineNumber(10),
+            Token::Let,
+            Token::Identifier("X".to_string()),
+            Token::Equal,
+            Token::Identifier("ABS".to_string()),
+            Token::LeftParen,
+            Token::Number("5".to_string()),
+            Token::RightParen,
+            Token::Newline,
+        ];
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse().unwrap();
+
+        assert_eq!(program.lines.len(), 1);
+        let stmt = &program.lines[0].statements[0];
+        if let Statement::Let { value, .. } = stmt {
+            if let Expression { expr_type: ExpressionType::FunctionCall { name, args }, .. } = value {
+                assert_eq!(name, "ABS");
+                assert_eq!(args.len(), 1);
+                if let Expression { expr_type: ExpressionType::Number(n), .. } = &args[0] {
+                    assert_eq!(*n, 5.0);
+                } else {
+                    panic!("Expected number argument");
+                }
+            } else {
+                panic!("Expected function call");
+            }
+        } else {
+            panic!("Expected LET statement");
+        }
+    }
 }
