@@ -1,8 +1,6 @@
-use std::str::Chars;
 use crate::basic_types::{Token, BasicError, is_valid_identifier};
 
-pub struct Lexer<'a> {
-    input: &'a str,
+pub struct Lexer {
     chars: Vec<char>,
     position: usize,
     file_line_number: usize,
@@ -10,11 +8,10 @@ pub struct Lexer<'a> {
     last_rem_comment: Option<String>,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Self {
+impl Lexer {
+    pub fn new(input: &str) -> Self {
         let chars: Vec<char> = input.chars().collect();
         Lexer {
-            input,
             chars,
             position: 0,
             file_line_number: 1,
@@ -288,14 +285,7 @@ impl<'a> Lexer<'a> {
         self.position += 1;
     }
 
-    fn peek(&self, offset: usize) -> Option<char> {
-        let pos = self.position + offset;
-        if pos < self.chars.len() {
-            Some(self.chars[pos])
-        } else {
-            None
-        }
-    }
+
 
     // New lookahead-based identifier parsing for BASIC
     fn tokenize_identifier_lookahead(&mut self) -> Result<Token, BasicError> {
@@ -449,7 +439,6 @@ impl<'a> Lexer<'a> {
                 // A - single letter
                 (r"^[A-Z]", 1),
             ];
-            let mut x = 1;
             for (pattern, min_len) in patterns {
                 // Try longest match first for each pattern
                 for len in (min_len..=input.len()).rev() {
@@ -458,7 +447,6 @@ impl<'a> Lexer<'a> {
                         return Some((candidate.to_string(), len));
                     }
                 }
-                x += 1;
             }
         
         None
