@@ -416,27 +416,34 @@ impl<'a> Lexer<'a> {
     }
 
     // Try to match identifiers in length order: A1$, A1, A$, A
-    fn try_match_identifier(&self, input: &str) -> Option<(String, usize)> {
-        // Try different identifier patterns in order of preference
-        let patterns = vec![
-            // A1$ - letter + digit + $
-            (r"^[A-Z]\d\$", 4),
-            // A1 - letter + digit
-            (r"^[A-Z]\d", 2),
-            // A$ - letter + $
-            (r"^[A-Z]\$", 2),
-            // A - single letter
-            (r"^[A-Z]", 1),
-        ];
-        
-        for (pattern, min_len) in patterns {
-            for len in min_len..=input.len() {
-                let candidate = &input[..len];
-                if self.matches_pattern(candidate, pattern) && is_valid_identifier(candidate) {
-                    return Some((candidate.to_string(), len));
+        fn try_match_identifier(&self, input: &str) -> Option<(String, usize)> {
+            // Try different identifier patterns in order of preference
+            let patterns = vec![
+                // A1$ - letter + digit + $
+                (r"^[A-Z]\d\$", 3),
+                // A1 - letter + digit
+                (r"^[A-Z]\d", 2),
+                // A$ - letter + $
+                (r"^[A-Z]\$", 2),
+                // A - single letter
+                (r"^[A-Z]", 1),
+            ];
+            let mut x = 1;
+            for (pattern, min_len) in patterns {
+                // Try longest match first for each pattern
+                for len in (min_len..=input.len()).rev() {
+                    println!("Pattern> {}: {:?}  input='{}' len={}", x, pattern, input, len);
+                    let candidate = &input[..len];
+                    println!("  candidate='{}' matches_pattern={} is_valid={}", 
+                             candidate, 
+                             self.matches_pattern(candidate, pattern),
+                             is_valid_identifier(candidate));
+                    if self.matches_pattern(candidate, pattern) && is_valid_identifier(candidate) {
+                        return Some((candidate.to_string(), len));
+                    }
                 }
+                x += 1;
             }
-        }
         
         None
     }
