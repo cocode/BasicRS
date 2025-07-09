@@ -175,6 +175,15 @@ impl Parser {
                     }
                 }
                 
+                // Check if there are unexpected tokens after the PRINT statement
+                if !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
+                    let current_token = self.peek().map(|t| format!("{:?}", t)).unwrap_or_else(|| "end of input".to_string());
+                    return Err(BasicError::Syntax {
+                        message: format!("Unexpected token after PRINT expression: {}", current_token),
+                        line_number: Some(self.current_line),
+                    });
+                }
+                
                 Ok(Statement::Print { expressions })
             }
             Some(Token::Input) => {
