@@ -574,7 +574,6 @@ impl fmt::Display for ExpressionType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expression {
     pub expr_type: ExpressionType,
-    pub line_number: Option<usize>,
 }
 
 impl fmt::Display for Expression {
@@ -587,28 +586,24 @@ impl Expression {
     pub fn new_number(n: f64) -> Self {
         Expression {
             expr_type: ExpressionType::Number(n),
-            line_number: None,
         }
     }
 
     pub fn new_string(s: String) -> Self {
         Expression {
             expr_type: ExpressionType::String(s),
-            line_number: None,
         }
     }
 
     pub fn new_variable(name: String) -> Self {
         Expression {
             expr_type: ExpressionType::Variable(name),
-            line_number: None,
         }
     }
 
     pub fn new_array(name: String, indices: Vec<Expression>) -> Self {
         Expression {
             expr_type: ExpressionType::Array { name, indices },
-            line_number: None,
         }
     }
 
@@ -619,7 +614,6 @@ impl Expression {
                 left: Box::new(left),
                 right: Box::new(right),
             },
-            line_number: None,
         }
     }
     pub fn new_unary_op(op: String, expr: Expression) -> Self {
@@ -628,14 +622,12 @@ impl Expression {
                 op,
                 expr: Box::new(expr),
             },
-            line_number: None,
         }
     }
 
     pub fn new_function_call(name: String, args: Vec<Expression>) -> Self {
         Expression {
             expr_type: ExpressionType::FunctionCall { name, args },
-            line_number: None,
         }
     }
 }
