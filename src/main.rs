@@ -33,8 +33,8 @@ fn main() {
             let mut parser = Parser::new(tokens);
             match parser.parse() {
                 Ok(program) => {
-                    println!("Program parsed successfully!");
-                    println!("Program has {} lines.", program.lines.len());
+                    // println!("Program parsed successfully!");
+                    // println!("Program has {} lines.", program.lines.len());
                     use basic_rs::basic_interpreter::Interpreter;
                     let mut interpreter = Interpreter::new(program);
                     if let Err(e) = interpreter.enable_trace() {
