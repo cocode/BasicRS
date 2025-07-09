@@ -241,28 +241,28 @@ impl Interpreter {
                 self.put_symbol(var.clone(), value);
                 Ok(())
             }
-            Statement::If { condition, then_statements, else_statements } => {
+            Statement::If { condition } => {
                 let result = self.evaluate_expression(condition)?;
                 match result {
                     SymbolValue::Number(n) => {
-                        if n != 0.0 {
-                            // Execute THEN branch
-                            for stmt in then_statements {
-                                self.execute_statement(&stmt)?;
-                            }
-                        } else if let Some(else_stmts) = else_statements {
-                            // Execute ELSE branch
-                            for stmt in else_stmts {
-                                self.execute_statement(&stmt)?;
-                            }
+                        if n == 0.0 {
+                            // Condition is false, skip to ELSE or next line
+                            self.goto_else_or_next_line()?;
                         }
+                        // If condition is true, continue to next statement
                     }
                     _ => return Err(BasicError::Type {
                         message: "IF condition must evaluate to a number".to_string(),
-                        basic_line_number: None,
-                        file_line_number: None,
+                        basic_line_number: Some(self.get_current_line().line_number), // TODO point to correct statement on multi-statement line
+                        file_line_number: Some(self.file_line_number),
                     }),
                 }
+                Ok(())
+            }
+            Statement::Then => {
+                Ok(())
+            }
+            Statement::Else => {
                 Ok(())
             }
             Statement::For { var, start, stop, step } => {
@@ -385,7 +385,6 @@ impl Interpreter {
             Statement::Return => {
                 if let Some(return_loc) = self.gosub_stack.pop() {
                     self.location = return_loc;
-                    self.advance_location();
                     Ok(())
                 } else {
                     Err(BasicError::Runtime {
@@ -821,7 +820,8 @@ impl Interpreter {
                     })
                     .collect();
                 let indices = idx_values?;
-                self.symbols.set_array_element(name, &indices, value)
+                self.symbols.set_array_element(name, &indices, value)?;
+                Ok(())
             }
             _ => Err(BasicError::Runtime {
                 message: "Invalid lvalue in READ statement".to_string(),
@@ -830,6 +830,41 @@ impl Interpreter {
             })
         }
     }
+
+    fn goto_else_or_next_line(&mut self) -> Result<(), BasicError> {
+        let current_line = self.get_current_line();
+        let mut offset = self.location.offset + 1;
+        
+        // Look for ELSE statement on current line
+        while offset < current_line.statements.len() {
+            match &current_line.statements[offset] {
+                Statement::Else => {
+                    // Found ELSE, advance to it
+                    self.location.offset = offset;
+                    return Ok(());
+                }
+                _ => {
+                    // Skip this statement
+                    offset += 1;
+                }
+            }
+        }
+        
+        // No ELSE found, go to next line
+        self.goto_next_line();
+        Ok(())
+    }
+
+    fn goto_next_line(&mut self) {
+        if self.location.index + 1 < self.program.lines.len() {
+            self.location.index += 1;
+            self.location.offset = 0;
+        } else {
+            self.run_status = RunStatus::EndOfProgram;
+        }
+    }
+
+
 }
 
 #[cfg(test)]
