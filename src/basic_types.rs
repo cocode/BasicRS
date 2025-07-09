@@ -253,7 +253,7 @@ impl fmt::Display for ArrayDecl {
 pub enum Statement {
     Let { var: Expression, value: Expression },
     Print { expressions: Vec<Expression> },
-    Input { var: String },
+    Input { var: String, prompt: Option<String> },
     If { condition: Expression, then_statements: Vec<Statement>, else_statements: Option<Vec<Statement>> },
     For { var: String, start: Expression, stop: Expression, step: Option<Expression> },
     Next { var: String },
@@ -294,7 +294,7 @@ impl Statement {
         Statement::Print { expressions }
     }
     pub fn new_input(var: String) -> Self {
-        Statement::Input { var }
+        Statement::Input { var, prompt: None }
     }
 
     pub fn new_if(condition: Expression, then_statements: Vec<Statement>, else_statements: Option<Vec<Statement>>) -> Self {
@@ -379,7 +379,13 @@ impl fmt::Display for Statement {
                 }
                 Ok(())
             }
-            Input { var } => write!(f, "INPUT {}", var),
+            Input { var, prompt } => {
+                write!(f, "INPUT")?;
+                if let Some(p) = prompt {
+                    write!(f, " \"{}\"", p)?;
+                }
+                write!(f, " {}", var)
+            },
             If { condition, then_statements, else_statements } => {
                 write!(f, "IF {} THEN ", condition)?;
                 for (i, stmt) in then_statements.iter().enumerate() {
@@ -696,7 +702,7 @@ pub fn is_valid_identifier(name: &str) -> bool {
     if chars.len() >= 3 && chars.iter().all(|c| c.is_ascii_uppercase()) {
         // Allow known built-in functions
         let known_functions = ["ABS", "ASC", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN", 
-                              "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$"];
+                              "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$", "TAB"];
         if known_functions.contains(&name) {
             return true;
         }
