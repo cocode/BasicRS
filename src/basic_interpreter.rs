@@ -210,9 +210,13 @@ impl Interpreter {
                 println!();
                 Ok(())
             }
-            Statement::Input { var } => {
+            Statement::Input { var, prompt } => {
                 let mut input = String::new();
-                print!("? ");
+                if let Some(p) = prompt {
+                    print!("{}", p);
+                } else {
+                    print!("? ");
+                }
                 io::stdout().flush()?;
                 io::stdin().read_line(&mut input)?;
                 let value = if let Ok(n) = input.trim().parse::<f64>() {
