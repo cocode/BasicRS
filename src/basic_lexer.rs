@@ -5,7 +5,8 @@ pub struct Lexer<'a> {
     input: &'a str,
     chars: Chars<'a>,
     current: Option<char>,
-    line_number: usize,
+    file_line_number: usize,
+    basic_line_number: Option<usize>,
 }
 
 impl<'a> Lexer<'a> {
@@ -16,11 +17,13 @@ impl<'a> Lexer<'a> {
             input,
             chars,
             current,
-            line_number: 1,
+            file_line_number: 1,
+            basic_line_number: None,
         }
     }
 
     pub fn tokenize(&mut self) -> Result<Vec<Token>, BasicError> {
+        println!("TOKENIZING");
         let mut tokens = Vec::new();
         
         while let Some(c) = self.current {
@@ -31,7 +34,9 @@ impl<'a> Lexer<'a> {
                 '\n' | '\r' => {
                     tokens.push(Token::Newline);
                     self.advance();
-                    self.line_number += 1;
+                    self.file_line_number += 1;
+                    println!("FILE LINE NUMBER {}", self.file_line_number);
+
                 }
                 '0'..='9' => {
                     // Check if this is a line number at the start of a line
@@ -49,7 +54,10 @@ impl<'a> Lexer<'a> {
                     }
                     
                     if is_start_of_line && !number.contains('.') {
+                        // This is the line, according to BASIC, like '100' in '100 x=1'
                         let line_num = number.parse().unwrap();
+                        self.basic_line_number = Some(line_num);
+                        println!("BASIC LINE NUMBER {}", line_num);
                         tokens.push(Token::LineNumber(line_num));
                     } else {
                         tokens.push(Token::Number(number));
@@ -69,7 +77,7 @@ impl<'a> Lexer<'a> {
                         if c == '\n' || c == '\r' {
                             return Err(BasicError::Syntax {
                                 message: "Unterminated string literal".to_string(),
-                                line_number: Some(self.line_number),
+                                line_number: Some(self.file_line_number),
                             });
                         }
                         string.push(c);
@@ -79,7 +87,7 @@ impl<'a> Lexer<'a> {
                     if !found_closing_quote {
                         return Err(BasicError::Syntax {
                             message: "Unterminated string literal".to_string(),
-                            line_number: Some(self.line_number),
+                            line_number: Some(self.file_line_number),
                         });
                     }
                     
@@ -190,7 +198,7 @@ impl<'a> Lexer<'a> {
                         } else {
                             return Err(BasicError::Syntax {
                                 message: format!("Invalid identifier: {}", accumulated),
-                                line_number: Some(self.line_number),
+                                line_number: Some(self.file_line_number),
                             });
                         }
                     }
@@ -264,7 +272,9 @@ impl<'a> Lexer<'a> {
                 }
                 _ => {
                     return Err(BasicError::Syntax {
-                        message: format!("Unexpected character: {}", c),
+                        message: format!("Unexpected character: {} basic line {} file line {}", c,
+                                         self.basic_line_number.unwrap_or(0).to_string(),
+                                         self.file_line_number),
                         line_number: None,
                     });
                 }
