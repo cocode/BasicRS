@@ -8,7 +8,8 @@ use crate::basic_types::{
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
-    current_line: usize,
+    current_basic_line: Option<usize>,  // If there is a syntax error, there may not be a line number
+    current_file_line: usize,           // There should always be a 'line number the file' (or source string)
     _data_values: Vec<SymbolValue>
 }
 
@@ -17,7 +18,8 @@ impl Parser {
         Parser {
             tokens,
             current: 0,
-            current_line: 1,
+            current_basic_line: None,
+            current_file_line: 1,
             _data_values: Vec::new(),
         }
     }
@@ -27,7 +29,7 @@ impl Parser {
         
         while !self.is_at_end() {
             let line_number = self.parse_line_number()?;
-            self.current_line = line_number;
+            self.current_basic_line = Some(line_number);
             // println!("line {}", line_number);
             let source = self.get_line_source();
             let statements = self.parse_statements()?;
@@ -37,6 +39,7 @@ impl Parser {
                 }
             }
             program.add_line(line_number, source, statements);
+            self.current_file_line += 1;
             
             // Skip any extra newlines between statements
             while self.check(&Token::Newline) {
@@ -58,8 +61,8 @@ impl Parser {
                 let current_token = self.peek().map(|t| format!("{:?}", t)).unwrap_or_else(|| "end of input".to_string());
                 Err(BasicError::Syntax {
                     message: format!("Expected line number at start of line, got {}", current_token),
-                    basic_line_number: Some(self.current_line),
-                    file_line_number: None,
+                    basic_line_number: self.current_basic_line,
+                    file_line_number: Some(self.current_file_line),
                 })
             }
         }
@@ -82,8 +85,6 @@ impl Parser {
 
             if self.check(&Token::Colon) {
                 self.advance(); // Skip colon
-            } else {
-                break;
             }
         }
 
@@ -100,7 +101,7 @@ impl Parser {
                 self.advance();
                 let value = n.parse::<f64>().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric constant in DATA: {}", n),
-                    basic_line_number: Some(self.current_line),
+                    basic_line_number: self.current_basic_line,
                     file_line_number: None,
                 })?;
                 Ok(SymbolValue::Number(value))
@@ -113,14 +114,14 @@ impl Parser {
                         self.advance();
                         let value = n.parse::<f64>().map_err(|_| BasicError::Syntax {
                             message: format!("Invalid numeric constant in DATA: -{}", n),
-                            basic_line_number: Some(self.current_line),
+                            basic_line_number: self.current_basic_line,
                             file_line_number: None,
                         })?;
                         Ok(SymbolValue::Number(-value))
                     }
                     _ => Err(BasicError::Syntax {
                         message: "Expected number after minus sign in DATA".to_string(),
-                        basic_line_number: Some(self.current_line),
+                        basic_line_number: self.current_basic_line,
                         file_line_number: None,
                     })
                 }
@@ -131,12 +132,12 @@ impl Parser {
             }
             Some(other) => Err(BasicError::Syntax {
                 message: format!("Invalid token in DATA statement: {}", other),
-                basic_line_number: Some(self.current_line),
+                basic_line_number: self.current_basic_line,
                 file_line_number: None,
             }),
             None => Err(BasicError::Syntax {
                 message: "Unexpected end of input in DATA statement".to_string(),
-                basic_line_number: Some(self.current_line),
+                basic_line_number: self.current_basic_line,
                 file_line_number: None,
             }),
         }
@@ -185,8 +186,8 @@ impl Parser {
                     let current_token = self.peek().map(|t| format!("{:?}", t)).unwrap_or_else(|| "end of input".to_string());
                     return Err(BasicError::Syntax {
                         message: format!("Unexpected token after PRINT expression: {}", current_token),
-                        basic_line_number: Some(self.current_line),
-                        file_line_number: None,
+                        basic_line_number: self.current_basic_line,
+                        file_line_number: Some(self.current_file_line),
                     });
                 }
                 
@@ -210,7 +211,7 @@ impl Parser {
                     } else {
                         return Err(BasicError::Syntax {
                             message: "Expected ';' or ',' after INPUT prompt".to_string(),
-                            basic_line_number: Some(self.current_line),
+                            basic_line_number: self.current_basic_line,
                             file_line_number: None,
                         });
                     }
@@ -238,29 +239,26 @@ impl Parser {
             Some(Token::If) => {
                 self.advance();
                 let condition = self.parse_expression()?;
-                self.consume(&Token::Then, "Expected THEN after condition")?;
-
-                // Parse THEN branch
-                let then_statements = if self.check(&Token::Goto) {
-                    // Handle implied GOTO
-                    vec![self.parse_statement()?]
-                } else if let Some(Token::Number(n)) = self.peek().cloned() {
-                    // Handle implied GOTO with line number
-                    self.advance();
-                    vec![Statement::Goto { line: n.parse().unwrap() }]
-                } else {
-                    // Parse multiple statements until ELSE or end of line
-                    self.parse_statement_block()?
-                };
-
-                // Parse ELSE branch (optional)
-                let else_statements = if self.match_any(&[Token::Else]) {
-                    Some(self.parse_statement_block()?)
-                } else {
-                    None
-                };
-
-                Ok(Statement::If { condition, then_statements, else_statements })
+                // self.consume(&Token::Then, "Expected THEN after condition")?;
+                Ok(Statement::If { condition })
+            }
+            Some(Token::Then) => {
+                self.advance();
+                // Check if next token is a number, for IF x THEN 100
+                if let Some(Token::Number(_)) = self.peek() {
+                    // Insert GOTO token before the number
+                    self.tokens.insert(self.current, Token::Goto);
+                }
+                Ok(Statement::Then)
+            }
+            Some(Token::Else) => {
+                self.advance();
+                // Check if next token is a number
+                if let Some(Token::Number(_)) = self.peek() {
+                    // Insert GOTO token before the number
+                    self.tokens.insert(self.current, Token::Goto);
+                }
+                Ok(Statement::Else)
             }
             Some(Token::For) => {
                 self.advance();
@@ -425,7 +423,7 @@ impl Parser {
                 } else {
                     Err(BasicError::Syntax {
                         message: "Expected GOTO or GOSUB after ON expression".to_string(),
-                        basic_line_number: Some(self.current_line),
+                        basic_line_number: self.current_basic_line,
                         file_line_number: None,
                     })
                 }
@@ -464,13 +462,13 @@ impl Parser {
             }
             Some(token) => Err(BasicError::Syntax {
                 message: format!("Unexpected token: {:?}", token),
-                basic_line_number: Some(self.current_line),
-                file_line_number: None,
+                basic_line_number: self.current_basic_line,
+                file_line_number: Some(self.current_file_line),
             }),
             None => Err(BasicError::Syntax {
                 message: "Unexpected end of input".to_string(),
-                basic_line_number: Some(self.current_line),
-                file_line_number: None,
+                basic_line_number: self.current_basic_line,
+                file_line_number: Some(self.current_file_line),
             }),
         }
     }
@@ -637,7 +635,7 @@ impl Parser {
             }
             _ => Err(BasicError::Syntax {
                 message: "Expected expression".to_string(),
-                basic_line_number: Some(self.current_line),
+                basic_line_number: self.current_basic_line,
                 file_line_number: None,
             }),
         }
@@ -678,7 +676,7 @@ impl Parser {
         } else {
             Err(BasicError::Syntax {
                 message: message.to_string(),
-                basic_line_number: Some(self.current_line),
+                basic_line_number: self.current_basic_line,
                 file_line_number: None,
             })
         }
@@ -697,7 +695,7 @@ impl Parser {
             }
             _ => Err(BasicError::Syntax {
                 message: "Expected identifier".to_string(),
-                basic_line_number: Some(self.current_line),
+                basic_line_number: self.current_basic_line,
                 file_line_number: None,
             }),
         }
@@ -710,13 +708,13 @@ impl Parser {
                 self.advance();
                 n.parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid number: {}", n),
-                    basic_line_number: Some(self.current_line),
+                    basic_line_number: self.current_basic_line,
                     file_line_number: None,
                 })
             }
             _ => Err(BasicError::Syntax {
                 message: "Expected number".to_string(),
-                basic_line_number: Some(self.current_line),
+                basic_line_number: self.current_basic_line,
                 file_line_number: None,
             }),
         }
@@ -755,21 +753,21 @@ impl Parser {
         comment
     }
 
-    fn parse_statement_block(&mut self) -> Result<Vec<Statement>, BasicError> {
-        let mut statements = Vec::new();
-        
-        while !self.is_at_end() && !self.check(&Token::Else) && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
-            statements.push(self.parse_statement()?);
-            
-            if self.check(&Token::Colon) {
-                self.advance(); // Skip colon separator
-            } else {
-                break;
-            }
-        }
-        
-        Ok(statements)
-    }
+    // fn parse_statement_block(&mut self) -> Result<Vec<Statement>, BasicError> {
+    //     let mut statements = Vec::new();
+    //
+    //     while !self.is_at_end() && !self.check(&Token::Else) && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
+    //         statements.push(self.parse_statement()?);
+    //
+    //         if self.check(&Token::Colon) {
+    //             self.advance(); // Skip colon separator
+    //         } else {
+    //             break;
+    //         }
+    //     }
+    //
+    //     Ok(statements)
+    // }
 
     fn parse_lvalue(&mut self) -> Result<Expression, BasicError> {
         let token = self.peek().cloned();
@@ -813,8 +811,8 @@ impl Parser {
             }
             _ => Err(BasicError::Syntax {
                 message: "Expected expression".to_string(),
-                basic_line_number: Some(self.current_line),
-                file_line_number: None,
+                basic_line_number: self.current_basic_line,
+                file_line_number: Some(self.current_file_line),
             }),
         }
     }
@@ -961,8 +959,8 @@ mod tests {
         assert!(result.is_err());
         if let Err(BasicError::Syntax { message, basic_line_number, file_line_number }) = result {
             assert!(message.contains("line number"));
-            assert_eq!(basic_line_number, Some(1));
-            assert_eq!(file_line_number, None);
+            assert_eq!(basic_line_number, None);
+            assert_eq!(file_line_number, Some(1));
         } else {
             panic!("Expected syntax error");
         }
@@ -983,7 +981,7 @@ mod tests {
         if let Err(BasicError::Syntax { message, basic_line_number, file_line_number }) = result {
             assert!(message.contains("Unexpected token"));
             assert_eq!(basic_line_number, Some(10));
-            assert_eq!(file_line_number, None);
+            assert_eq!(file_line_number, Some(1));
         } else {
             panic!("Expected syntax error");
         }
