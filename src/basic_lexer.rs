@@ -3,33 +3,33 @@ use crate::basic_types::{Token, BasicError, is_valid_identifier};
 
 pub struct Lexer<'a> {
     input: &'a str,
-    chars: Chars<'a>,
-    current: Option<char>,
+    chars: Vec<char>,
+    position: usize,
     file_line_number: usize,
     basic_line_number: Option<usize>,
+    last_rem_comment: Option<String>,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
-        let mut chars = input.chars();
-        let current = chars.next();
+        let chars: Vec<char> = input.chars().collect();
         Lexer {
             input,
             chars,
-            current,
+            position: 0,
             file_line_number: 1,
             basic_line_number: None,
+            last_rem_comment: None,
         }
     }
 
     // Main tokenize function that processes the entire program line by line
     pub fn tokenize(&mut self) -> Result<Vec<Token>, BasicError> {
-        println!("TOKENIZING");
         let mut all_tokens = Vec::new();
         
-        while let Some(c) = self.current {
+        while self.position < self.chars.len() {
             // Skip leading whitespace
-            if c == ' ' || c == '\t' {
+            if self.current_char() == ' ' || self.current_char() == '\t' {
                 self.advance();
                 continue;
             }
@@ -47,7 +47,8 @@ impl<'a> Lexer<'a> {
         let mut line_tokens = Vec::new();
         
         // Check for line number at start of line
-        if let Some(c) = self.current {
+        if self.position < self.chars.len() {
+            let c = self.chars[self.position];
             if c.is_ascii_digit() {
                 let line_number = self.tokenize_line_number()?;
                 line_tokens.push(line_number);
@@ -59,7 +60,8 @@ impl<'a> Lexer<'a> {
         line_tokens.extend(statement_tokens);
         
         // Add newline token at end of line
-        if let Some(c) = self.current {
+        if self.position < self.chars.len() {
+            let c = self.chars[self.position];
             if c == '\n' || c == '\r' {
                 line_tokens.push(Token::Newline);
                 self.advance();
@@ -74,7 +76,8 @@ impl<'a> Lexer<'a> {
     fn tokenize_line_number(&mut self) -> Result<Token, BasicError> {
         let mut number = String::new();
         
-        while let Some(c) = self.current {
+        while self.position < self.chars.len() {
+            let c = self.chars[self.position];
             if c.is_ascii_digit() {
                 number.push(c);
                 self.advance();
@@ -86,7 +89,6 @@ impl<'a> Lexer<'a> {
         match number.parse::<usize>() {
             Ok(line_num) => {
                 self.basic_line_number = Some(line_num);
-                println!("BASIC LINE NUMBER {}", line_num);
                 Ok(Token::LineNumber(line_num))
             }
             Err(_) => {
@@ -102,7 +104,8 @@ impl<'a> Lexer<'a> {
     pub fn tokenize_statements(&mut self) -> Result<Vec<Token>, BasicError> {
         let mut tokens = Vec::new();
         
-        while let Some(c) = self.current {
+        while self.position < self.chars.len() {
+            let c = self.chars[self.position];
             match c {
                 ' ' | '\t' => {
                     self.advance();
@@ -114,7 +117,8 @@ impl<'a> Lexer<'a> {
                 '0'..='9' => {
                     // This is a number (not a line number since we're in statements)
                     let mut number = String::new();
-                    while let Some(c) = self.current {
+                    while self.position < self.chars.len() {
+                        let c = self.chars[self.position];
                         if c.is_ascii_digit() || c == '.' {
                             number.push(c);
                             self.advance();
@@ -129,7 +133,8 @@ impl<'a> Lexer<'a> {
                     self.advance(); // Skip opening quote
                     
                     let mut found_closing_quote = false;
-                    while let Some(c) = self.current {
+                    while self.position < self.chars.len() {
+                        let c = self.chars[self.position];
                         if c == '"' {
                             self.advance(); // Skip closing quote
                             found_closing_quote = true;
@@ -155,113 +160,14 @@ impl<'a> Lexer<'a> {
                     tokens.push(Token::String(string));
                 }
                 'A'..='Z' | 'a'..='z' => {
-                    let mut accumulated = String::new();
-                    let mut is_keyword = false;
-                    let mut keyword_token = None;
-                    
-                    // Accumulate characters
-                    while let Some(c) = self.current {
-                        if c.is_ascii_alphanumeric() || c == '_' || c == '$' {
-                            accumulated.push(c.to_ascii_uppercase());
-                            self.advance();
-                            // Check if current accumulated string is a keyword
-                            match accumulated.as_str() {
-                                "REM" | "LET" | "PRINT" | "INPUT" | "IF" | "THEN" | "ELSE" |
-                                "FOR" | "TO" | "STEP" | "NEXT" | "GOTO" | "GOSUB" | "RETURN" |
-                                "END" | "STOP" | "DATA" | "READ" | "RESTORE" | "DIM" | "ON" |
-                                "DEF" | "AND" | "OR" | "NOT" => {
-                                    is_keyword = true;
-                                    keyword_token = match accumulated.as_str() {
-                                        "REM" => Some(Token::Rem),
-                                        "LET" => Some(Token::Let),
-                                        "PRINT" => Some(Token::Print),
-                                        "INPUT" => Some(Token::Input),
-                                        "IF" => Some(Token::If),
-                                        "THEN" => Some(Token::Then),
-                                        "ELSE" => Some(Token::Else),
-                                        "FOR" => Some(Token::For),
-                                        "TO" => Some(Token::To),
-                                        "STEP" => Some(Token::Step),
-                                        "NEXT" => Some(Token::Next),
-                                        "GOTO" => Some(Token::Goto),
-                                        "GOSUB" => Some(Token::Gosub),
-                                        "RETURN" => Some(Token::Return),
-                                        "END" => Some(Token::End),
-                                        "STOP" => Some(Token::Stop),
-                                        "DATA" => Some(Token::Data),
-                                        "READ" => Some(Token::Read),
-                                        "RESTORE" => Some(Token::Restore),
-                                        "DIM" => Some(Token::Dim),
-                                        "ON" => Some(Token::On),
-                                        "DEF" => Some(Token::Def),
-                                        "AND" => Some(Token::And),
-                                        "OR" => Some(Token::Or),
-                                        "NOT" => Some(Token::Not),
-                                        _ => None,
-                                    };
-                                }
-                                "ABS" | "ASC" | "ATN" | "COS" | "EXP" | "INT" | "LOG" | "RND" | "SGN" | "SIN" | "SQR" | "TAN" |
-                                "CHR$" | "LEFT$" | "LEN" | "MID$" | "RIGHT$" | "SPACE$" | "STR$" => {
-                                    // Built-in functions - treat as identifiers but don't split them
-                                    is_keyword = false;
-                                }
-                                _ => {}
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                    
-                    if is_keyword {
-                        // Handle keyword
-                        if keyword_token == Some(Token::Rem) {
-                            tokens.push(Token::Rem);
-                            // Consume the rest of the line for REM statements
-                            let mut comment = String::new();
-                            while let Some(c) = self.current {
-                                if c == '\n' || c == '\r' {
-                                    break;
-                                }
-                                comment.push(c);
-                                self.advance();
-                            }
-                            tokens.push(Token::String(comment.trim().to_string()));
-                        } else {
-                            tokens.push(keyword_token.unwrap());
-                        }
-                    } else if is_valid_identifier(&accumulated) {
-                        // Handle complete valid identifier (including built-in functions)
-                        tokens.push(Token::Identifier(accumulated));
-                    } else {
-                        // Handle variable - take longest valid variable from front
-                        let mut valid_variable = String::new();
-                        let chars: Vec<char> = accumulated.chars().collect();
-                        // Try to find the longest valid variable from the front
-                        for i in 0..chars.len() {
-                            let candidate = chars[0..=i].iter().collect::<String>();
-                            if is_valid_identifier(&candidate) {
-                                valid_variable = candidate;
-                            } else {
-                                break;
-                            }
-                        }
-                        if !valid_variable.is_empty() {
-                            let valid_len = valid_variable.len();
-                            tokens.push(Token::Identifier(valid_variable));
-                            // If there are remaining characters, they need to be processed
-                            if valid_len < accumulated.len() {
-                                let remaining = &accumulated[valid_len..];
-                                // Recursively process the remaining characters
-                                let mut remaining_lexer = Lexer::new(remaining);
-                                let mut remaining_tokens = remaining_lexer.tokenize_statements()?;
-                                tokens.append(&mut remaining_tokens);
-                            }
-                        } else {
-                            return Err(BasicError::Syntax {
-                                message: format!("Invalid identifier: {}", accumulated),
-                                line_number: Some(self.file_line_number),
-                            });
-                        }
+                    // New lookahead-based identifier parsing for BASIC
+                    let token = self.tokenize_identifier_lookahead()?;
+                    tokens.push(token);
+                    // Special handling for REM: if last_rem_comment is set, push it as a string token
+                    if let Some(comment) = self.last_rem_comment.take() {
+                        tokens.push(Token::String(comment));
+                        // After REM, the rest of the line is a comment, so break
+                        break;
                     }
                 }
                 '+' => {
@@ -290,21 +196,25 @@ impl<'a> Lexer<'a> {
                 }
                 '<' => {
                     self.advance();
-                    match self.current {
-                        Some('=') => {
-                            tokens.push(Token::LessEqual);
-                            self.advance();
+                    if self.position < self.chars.len() {
+                        match self.chars[self.position] {
+                            '=' => {
+                                tokens.push(Token::LessEqual);
+                                self.advance();
+                            }
+                            '>' => {
+                                tokens.push(Token::NotEqual);
+                                self.advance();
+                            }
+                            _ => tokens.push(Token::Less),
                         }
-                        Some('>') => {
-                            tokens.push(Token::NotEqual);
-                            self.advance();
-                        }
-                        _ => tokens.push(Token::Less),
+                    } else {
+                        tokens.push(Token::Less);
                     }
                 }
                 '>' => {
                     self.advance();
-                    if let Some('=') = self.current {
+                    if self.position < self.chars.len() && self.chars[self.position] == '=' {
                         tokens.push(Token::GreaterEqual);
                         self.advance();
                     } else {
@@ -345,8 +255,259 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 
+    // Helper methods for character array approach
+    fn current_char(&self) -> char {
+        if self.position < self.chars.len() {
+            self.chars[self.position]
+        } else {
+            '\0' // End of input
+        }
+    }
+
     fn advance(&mut self) {
-        self.current = self.chars.next();
+        self.position += 1;
+    }
+
+    fn peek(&self, offset: usize) -> Option<char> {
+        let pos = self.position + offset;
+        if pos < self.chars.len() {
+            Some(self.chars[pos])
+        } else {
+            None
+        }
+    }
+
+    // New lookahead-based identifier parsing for BASIC
+    fn tokenize_identifier_lookahead(&mut self) -> Result<Token, BasicError> {
+        let start_pos = self.position;
+        let mut chars = Vec::new();
+        
+        // Collect all characters that could be part of the identifier
+        while self.position < self.chars.len() {
+            let c = self.chars[self.position];
+            if c.is_ascii_alphanumeric() || c == '_' || c == '$' {
+                chars.push(c.to_ascii_uppercase());
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        
+        let input_str: String = chars.iter().collect();
+        
+        // Step 1: Scan for keywords, functions, or user-defined functions
+        if let Some(token) = self.try_match_keyword_or_function(&input_str) {
+            // Special handling for REM
+            if let Some(keyword_len) = self.get_keyword_length(&input_str) {
+                let keyword = &input_str[..keyword_len];
+                if keyword == "REM" {
+                    self.position = start_pos + keyword_len;
+                    // Emit REM token
+                    // Collect the rest of the line as a comment
+                    let mut comment = String::new();
+                    while self.position < self.chars.len() {
+                        let c = self.chars[self.position];
+                        if c == '\n' || c == '\r' {
+                            break;
+                        }
+                        comment.push(c);
+                        self.advance();
+                    }
+                    // Trim leading whitespace from the comment
+                    let trimmed_comment = comment.trim_start().to_string();
+                    self.last_rem_comment = Some(trimmed_comment);
+                    return Ok(Token::Rem);
+                } else {
+                    self.position = start_pos + keyword_len;
+                }
+            }
+            return Ok(token);
+        }
+        
+        // Step 2: Scan for identifiers in length order: A1$, A1, A$, A
+        if let Some((identifier, consumed_len)) = self.try_match_identifier(&input_str) {
+            // Reset position to where we started plus the consumed length
+            self.position = start_pos + consumed_len;
+            return Ok(Token::Identifier(identifier));
+        }
+        
+        // If we get here, we couldn't match anything
+        Err(BasicError::Syntax {
+            message: format!("Invalid identifier: {}", input_str),
+            line_number: Some(self.file_line_number),
+        })
+    }
+
+    // Try to match keywords or functions
+    fn try_match_keyword_or_function(&mut self, input: &str) -> Option<Token> {
+        // Keywords
+        let keywords = vec![
+            ("REM", Token::Rem),
+            ("LET", Token::Let),
+            ("PRINT", Token::Print),
+            ("INPUT", Token::Input),
+            ("IF", Token::If),
+            ("THEN", Token::Then),
+            ("ELSE", Token::Else),
+            ("FOR", Token::For),
+            ("TO", Token::To),
+            ("STEP", Token::Step),
+            ("NEXT", Token::Next),
+            ("GOTO", Token::Goto),
+            ("GOSUB", Token::Gosub),
+            ("RETURN", Token::Return),
+            ("END", Token::End),
+            ("STOP", Token::Stop),
+            ("DATA", Token::Data),
+            ("READ", Token::Read),
+            ("RESTORE", Token::Restore),
+            ("DIM", Token::Dim),
+            ("ON", Token::On),
+            ("DEF", Token::Def),
+            ("AND", Token::And),
+            ("OR", Token::Or),
+            ("NOT", Token::Not),
+        ];
+        
+        // Built-in functions
+        let functions = vec![
+            "ABS", "ASC", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN",
+            "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$"
+        ];
+        
+        // Try to match the longest keyword/function first
+        for len in (1..=input.len()).rev() {
+            let candidate = &input[..len];
+            let candidate_upper = candidate.to_ascii_uppercase();
+            // Check keywords
+            for (keyword, token) in &keywords {
+                if candidate_upper == *keyword {
+                    // Special handling for REM
+                    if *keyword == "REM" {
+                        // Consume the rest of the line for REM statements
+                        let mut comment = String::new();
+                        while self.position < self.chars.len() {
+                            let c = self.chars[self.position];
+                            if c == '\n' || c == '\r' {
+                                break;
+                            }
+                            comment.push(c);
+                            self.advance();
+                        }
+                        // Return the REM token, the comment will be handled separately
+                        return Some(Token::Rem);
+                    }
+                    return Some(token.clone());
+                }
+            }
+            // Check functions
+            for function in &functions {
+                if candidate_upper == *function {
+                    return Some(Token::Identifier(candidate_upper.clone()));
+                }
+            }
+            // Check user-defined function pattern: FNX
+            if candidate_upper.len() == 3 && &candidate_upper[0..2] == "FN" && candidate_upper.chars().nth(2).unwrap().is_ascii_uppercase() {
+                return Some(Token::Identifier(candidate_upper));
+            }
+        }
+        
+        None
+    }
+
+    // Try to match identifiers in length order: A1$, A1, A$, A
+    fn try_match_identifier(&self, input: &str) -> Option<(String, usize)> {
+        // Try different identifier patterns in order of preference
+        let patterns = vec![
+            // A1$ - letter + digit + $
+            (r"^[A-Z]\d\$", 4),
+            // A1 - letter + digit
+            (r"^[A-Z]\d", 2),
+            // A$ - letter + $
+            (r"^[A-Z]\$", 2),
+            // A - single letter
+            (r"^[A-Z]", 1),
+        ];
+        
+        for (pattern, min_len) in patterns {
+            for len in min_len..=input.len() {
+                let candidate = &input[..len];
+                if self.matches_pattern(candidate, pattern) && is_valid_identifier(candidate) {
+                    return Some((candidate.to_string(), len));
+                }
+            }
+        }
+        
+        None
+    }
+
+    // Simple pattern matching (we could use regex, but this is simpler for BASIC)
+    fn matches_pattern(&self, input: &str, pattern: &str) -> bool {
+        if input.is_empty() {
+            return false;
+        }
+        
+        let chars: Vec<char> = input.chars().collect();
+        
+        match pattern {
+            r"^[A-Z]\d\$" => {
+                chars.len() >= 3 && 
+                chars[0].is_ascii_uppercase() && 
+                chars[1].is_ascii_digit() && 
+                chars[2] == '$'
+            }
+            r"^[A-Z]\d" => {
+                chars.len() >= 2 && 
+                chars[0].is_ascii_uppercase() && 
+                chars[1].is_ascii_digit()
+            }
+            r"^[A-Z]\$" => {
+                chars.len() >= 2 && 
+                chars[0].is_ascii_uppercase() && 
+                chars[1] == '$'
+            }
+            r"^[A-Z]" => {
+                chars.len() >= 1 && 
+                chars[0].is_ascii_uppercase()
+            }
+            _ => false
+        }
+    }
+
+    // Get the length of the longest matching keyword
+    fn get_keyword_length(&self, input: &str) -> Option<usize> {
+        let keywords = vec![
+            "REM", "LET", "PRINT", "INPUT", "IF", "THEN", "ELSE",
+            "FOR", "TO", "STEP", "NEXT", "GOTO", "GOSUB", "RETURN",
+            "END", "STOP", "DATA", "READ", "RESTORE", "DIM", "ON",
+            "DEF", "AND", "OR", "NOT"
+        ];
+        
+        let functions = vec![
+            "ABS", "ASC", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN",
+            "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$"
+        ];
+        
+        // Try to match the longest keyword/function first
+        for len in (1..=input.len()).rev() {
+            let candidate = &input[..len];
+            
+            // Check keywords
+            for keyword in &keywords {
+                if candidate == *keyword {
+                    return Some(len);
+                }
+            }
+            
+            // Check functions
+            for function in &functions {
+                if candidate == *function {
+                    return Some(len);
+                }
+            }
+        }
+        
+        None
     }
 }
 
@@ -464,4 +625,27 @@ mod tests {
     //         assert!(result.is_err(), "Should fail for input: {}", input);
     //     }
     // }
+
+    #[test]
+    fn test_basic_space_free_syntax() {
+        // Test the case mentioned: 100FORI=ATOBSTEPC
+        let mut lexer = Lexer::new("100FORI=ATOBSTEPC");
+        let tokens = lexer.tokenize().unwrap();
+        
+        println!("Tokens for '100FORI=ATOBSTEPC':");
+        for (i, token) in tokens.iter().enumerate() {
+            println!("  {}: {:?}", i, token);
+        }
+        
+        // Should parse as: LineNumber(100), For, Identifier("I"), Equal, Identifier("A"), To, Identifier("B"), Step, Identifier("C")
+        assert_eq!(tokens[0], Token::LineNumber(100));
+        assert_eq!(tokens[1], Token::For);
+        assert_eq!(tokens[2], Token::Identifier("I".to_string()));
+        assert_eq!(tokens[3], Token::Equal);
+        assert_eq!(tokens[4], Token::Identifier("A".to_string()));
+        assert_eq!(tokens[5], Token::To);
+        assert_eq!(tokens[6], Token::Identifier("B".to_string()));
+        assert_eq!(tokens[7], Token::Step);
+        assert_eq!(tokens[8], Token::Identifier("C".to_string()));
+    }
 } 
