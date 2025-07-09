@@ -120,7 +120,7 @@ impl Interpreter {
     pub fn run(&mut self) -> Result<(), BasicError> {
         while self.run_status == RunStatus::Run {
             let current_line = self.get_current_line().line_number;
-            println!("current line {}", current_line);
+            // println!("current line {}", current_line);
             let current_offset = self.location.offset;
             
             // Check breakpoints
@@ -545,6 +545,8 @@ impl Interpreter {
                             "<=" => if a <= b { -1.0 } else { 0.0 },
                             ">" => if a > b { -1.0 } else { 0.0 },
                             ">=" => if a >= b { -1.0 } else { 0.0 },
+                            "AND" => (a as i64 & b as i64) as f64,
+                            "OR" => (a as i64 | b as i64) as f64,
                             _ => return Err(BasicError::Runtime {
                                 message: format!("Unknown binary operator: {}", op),
                                 basic_line_number: Some(self.get_current_line().line_number),
