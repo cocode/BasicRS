@@ -22,8 +22,84 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    // Main tokenize function that processes the entire program line by line
     pub fn tokenize(&mut self) -> Result<Vec<Token>, BasicError> {
         println!("TOKENIZING");
+        let mut all_tokens = Vec::new();
+        
+        while let Some(c) = self.current {
+            // Skip leading whitespace
+            if c == ' ' || c == '\t' {
+                self.advance();
+                continue;
+            }
+            
+            // Process one line at a time
+            let line_tokens = self.tokenize_line()?;
+            all_tokens.extend(line_tokens);
+        }
+        
+        Ok(all_tokens)
+    }
+
+    // Tokenize a single line, extracting line number and statements
+    fn tokenize_line(&mut self) -> Result<Vec<Token>, BasicError> {
+        let mut line_tokens = Vec::new();
+        
+        // Check for line number at start of line
+        if let Some(c) = self.current {
+            if c.is_ascii_digit() {
+                let line_number = self.tokenize_line_number()?;
+                line_tokens.push(line_number);
+            }
+        }
+        
+        // Tokenize the statements on this line
+        let statement_tokens = self.tokenize_statements()?;
+        line_tokens.extend(statement_tokens);
+        
+        // Add newline token at end of line
+        if let Some(c) = self.current {
+            if c == '\n' || c == '\r' {
+                line_tokens.push(Token::Newline);
+                self.advance();
+                self.file_line_number += 1;
+            }
+        }
+        
+        Ok(line_tokens)
+    }
+
+    // Extract line number from start of line
+    fn tokenize_line_number(&mut self) -> Result<Token, BasicError> {
+        let mut number = String::new();
+        
+        while let Some(c) = self.current {
+            if c.is_ascii_digit() {
+                number.push(c);
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        
+        match number.parse::<usize>() {
+            Ok(line_num) => {
+                self.basic_line_number = Some(line_num);
+                println!("BASIC LINE NUMBER {}", line_num);
+                Ok(Token::LineNumber(line_num))
+            }
+            Err(_) => {
+                Err(BasicError::Syntax {
+                    message: format!("Invalid line number: {}", number),
+                    line_number: Some(self.file_line_number),
+                })
+            }
+        }
+    }
+
+    // Tokenize statements on a line (everything after line number until newline)
+    pub fn tokenize_statements(&mut self) -> Result<Vec<Token>, BasicError> {
         let mut tokens = Vec::new();
         
         while let Some(c) = self.current {
@@ -32,17 +108,11 @@ impl<'a> Lexer<'a> {
                     self.advance();
                 }
                 '\n' | '\r' => {
-                    tokens.push(Token::Newline);
-                    self.advance();
-                    self.file_line_number += 1;
-                    println!("FILE LINE NUMBER {}", self.file_line_number);
-
+                    // End of line reached
+                    break;
                 }
                 '0'..='9' => {
-                    // Check if this is a line number at the start of a line
-                    let is_start_of_line = tokens.is_empty() || 
-                        matches!(tokens.last(), Some(Token::Newline));
-                    
+                    // This is a number (not a line number since we're in statements)
                     let mut number = String::new();
                     while let Some(c) = self.current {
                         if c.is_ascii_digit() || c == '.' {
@@ -52,16 +122,7 @@ impl<'a> Lexer<'a> {
                             break;
                         }
                     }
-                    
-                    if is_start_of_line && !number.contains('.') {
-                        // This is the line, according to BASIC, like '100' in '100 x=1'
-                        let line_num = number.parse().unwrap();
-                        self.basic_line_number = Some(line_num);
-                        println!("BASIC LINE NUMBER {}", line_num);
-                        tokens.push(Token::LineNumber(line_num));
-                    } else {
-                        tokens.push(Token::Number(number));
-                    }
+                    tokens.push(Token::Number(number));
                 }
                 '"' => {
                     let mut string = String::new();
@@ -174,7 +235,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         // Handle variable - take longest valid variable from front
                         let mut valid_variable = String::new();
-                        let mut chars: Vec<char> = accumulated.chars().collect();
+                        let chars: Vec<char> = accumulated.chars().collect();
                         // Try to find the longest valid variable from the front
                         for i in 0..chars.len() {
                             let candidate = chars[0..=i].iter().collect::<String>();
@@ -192,7 +253,7 @@ impl<'a> Lexer<'a> {
                                 let remaining = &accumulated[valid_len..];
                                 // Recursively process the remaining characters
                                 let mut remaining_lexer = Lexer::new(remaining);
-                                let mut remaining_tokens = remaining_lexer.tokenize()?;
+                                let mut remaining_tokens = remaining_lexer.tokenize_statements()?;
                                 tokens.append(&mut remaining_tokens);
                             }
                         } else {
