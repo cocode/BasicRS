@@ -243,10 +243,10 @@ impl<'a> Lexer<'a> {
                 }
                 _ => {
                     return Err(BasicError::Syntax {
-                        message: format!("Unexpected character: {} basic line {} file line {}", c,
+                        message: format!("Unexpected character: '{}' basic line {} file line {}", c,
                                          self.basic_line_number.unwrap_or(0).to_string(),
                                          self.file_line_number),
-                        line_number: None,
+                        line_number: Some(self.file_line_number),
                     });
                 }
             }
