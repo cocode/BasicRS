@@ -23,14 +23,12 @@ impl Op {
 #[derive(Debug, Clone)]
 pub struct MonoOp {
     lambda: fn(f64) -> f64,
-    return_type: Option<String>,
 }
 
 impl MonoOp {
     pub fn new(lambda: fn(f64) -> f64) -> Self {
         MonoOp {
             lambda,
-            return_type: None,
         }
     }
 
