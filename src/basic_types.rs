@@ -269,7 +269,9 @@ pub enum Statement {
     Let { var: Expression, value: Expression },
     Print { expressions: Vec<Expression> },
     Input { var: String, prompt: Option<String> },
-    If { condition: Expression, then_statements: Vec<Statement>, else_statements: Option<Vec<Statement>> },
+    If { condition: Expression },
+    Then,
+    Else,
     For { var: String, start: Expression, stop: Expression, step: Option<Expression> },
     Next { var: String },
     Goto { line: usize },
@@ -294,9 +296,11 @@ impl Statement {
         match self {
             Statement::Goto { .. } => false,
             Statement::Gosub { .. } => false,
-            Statement::Return => false,
+            Statement::Return => true,
+            Statement::Next {..} => true,
             Statement::End => false,
             Statement::Stop => false,
+            Statement::Else => false,
             _ => true,
         }
     }
@@ -312,8 +316,16 @@ impl Statement {
         Statement::Input { var, prompt: None }
     }
 
-    pub fn new_if(condition: Expression, then_statements: Vec<Statement>, else_statements: Option<Vec<Statement>>) -> Self {
-        Statement::If { condition, then_statements, else_statements }
+    pub fn new_if(condition: Expression) -> Self {
+        Statement::If { condition }
+    }
+
+    pub fn new_then() -> Self {
+        Statement::Then
+    }
+
+    pub fn new_else() -> Self {
+        Statement::Else
     }
 
     pub fn new_for(var: String, start: Expression, stop: Expression, step: Option<Expression>) -> Self {
@@ -401,25 +413,11 @@ impl fmt::Display for Statement {
                 }
                 write!(f, " {}", var)
             },
-            If { condition, then_statements, else_statements } => {
-                write!(f, "IF {} THEN ", condition)?;
-                for (i, stmt) in then_statements.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, " : ")?;
-                    }
-                    write!(f, "{}", stmt)?;
-                }
-                if let Some(else_stmts) = else_statements {
-                    write!(f, " ELSE ")?;
-                    for (i, stmt) in else_stmts.iter().enumerate() {
-                        if i > 0 {
-                            write!(f, " : ")?;
-                        }
-                        write!(f, "{}", stmt)?;
-                    }
-                }
-                Ok(())
+            If { condition } => {
+                write!(f, "IF {}", condition)
             }
+            Then => write!(f, "THEN"),
+            Else => write!(f, "ELSE"),
             For { var, start, stop, step } => {
                 write!(f, "FOR {} = {} TO {}", var, start, stop)?;
                 if let Some(step) = step {
