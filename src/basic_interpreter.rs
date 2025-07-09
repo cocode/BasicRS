@@ -48,13 +48,13 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new(program: Program) -> Self {
-        // Only build the line number map and do not collect DATA values here
         let mut line_number_map = HashMap::new();
         for (i, line) in program.lines.iter().enumerate() {
             line_number_map.insert(line.line_number, i);
         }
-        // DATA values are already collected elsewhere in the codebase.
-        
+
+
+
         let internal_symbols = SymbolTable::new();
         let symbols = internal_symbols.get_nested_scope();
         
@@ -119,6 +119,14 @@ impl Interpreter {
     }
 
     pub fn run(&mut self) -> Result<(), BasicError> {
+        for pl in &self.program.lines {
+            for stmt in &pl.statements {
+                if let Statement::Data { values } = stmt {
+                    self.data_values.extend(values.iter().cloned());
+                }
+            }
+        }
+
         while self.run_status == RunStatus::Run {
             let current_line = self.get_current_line().line_number;
             // println!("current line {}", current_line);

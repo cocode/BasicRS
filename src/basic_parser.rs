@@ -33,11 +33,7 @@ impl Parser {
             // println!("line {}", line_number);
             let source = self.get_line_source();
             let statements = self.parse_statements()?;
-            for stmt in &statements {
-                if let Statement::Data { values } = stmt {
-                    self._data_values.extend(values.iter().cloned());
-                }
-            }
+
             program.add_line(line_number, source, statements);
             self.current_file_line += 1;
             
