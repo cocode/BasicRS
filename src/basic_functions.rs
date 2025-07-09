@@ -261,6 +261,24 @@ lazy_static! {
             arg_types: vec![ArgType::String],
         });
 
+        m.insert("SPACE$".to_string(), BasicFunction::String {
+            name: "SPACE$".to_string(),
+            lambda: |args| {
+                let n: usize = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
+                Ok(format!("\"{}\"", " ".repeat(n)))
+            },
+            arg_types: vec![ArgType::Number],
+        });
+
+        m.insert("STR$".to_string(), BasicFunction::String {
+            name: "STR$".to_string(),
+            lambda: |args| {
+                let n: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
+                Ok(format!("\"{}\"", n))
+            },
+            arg_types: vec![ArgType::Number],
+        });
+
         m
     };
 }
@@ -375,6 +393,22 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
                     "0"
                 }
                 .to_string())
+            },
+            arg_types: vec![ArgType::Number],
+        }),
+        "SPACE$" => Some(BasicFunction::String {
+            name: "SPACE$".to_string(),
+            lambda: |args| {
+                let n: usize = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
+                Ok(format!("\"{}\"", " ".repeat(n)))
+            },
+            arg_types: vec![ArgType::Number],
+        }),
+        "STR$" => Some(BasicFunction::String {
+            name: "STR$".to_string(),
+            lambda: |args| {
+                let n: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
+                Ok(format!("\"{}\"", n))
             },
             arg_types: vec![ArgType::Number],
         }),
