@@ -230,11 +230,35 @@ lazy_static! {
             name: "SGN".to_string(),
             lambda: |args| {
                 let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(if value > 0.0 { "1" }
-                else if value < 0.0 { "-1" }
-                else { "0" }.to_string())
+                Ok(
+                    if value > 0.0 {
+                        "1"
+                    } else if value < 0.0 {
+                        "-1"
+                    } else {
+                        "0"
+                    }
+                    .to_string(),
+                )
             },
             arg_types: vec![ArgType::Number],
+        });
+
+        m.insert("ASC".to_string(), BasicFunction::Number {
+            name: "ASC".to_string(),
+            lambda: |args| {
+                let s = args[0].trim_matches('"');
+                if s.is_empty() {
+                    return Err(BasicError::Syntax {
+                        message: "ASC() requires a non-empty string".to_string(),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
+                let first_char = s.chars().next().unwrap();
+                Ok((first_char as u32 as f64).to_string())
+            },
+            arg_types: vec![ArgType::String],
         });
 
         m
@@ -250,6 +274,22 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
                 Ok(value.abs().to_string())
             },
             arg_types: vec![ArgType::Number],
+        }),
+        "ASC" => Some(BasicFunction::Number {
+            name: "ASC".to_string(),
+            lambda: |args| {
+                let s = args[0].trim_matches('"');
+                if s.is_empty() {
+                    return Err(BasicError::Syntax {
+                        message: "ASC() requires a non-empty string".to_string(),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
+                let first_char = s.chars().next().unwrap();
+                Ok((first_char as u32 as f64).to_string())
+            },
+            arg_types: vec![ArgType::String],
         }),
         "CHR$" => Some(BasicFunction::String {
             name: "CHR$".to_string(),
