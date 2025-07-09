@@ -28,6 +28,7 @@ impl Parser {
         while !self.is_at_end() {
             let line_number = self.parse_line_number()?;
             self.current_line = line_number;
+            println!("line {}", line_number);
             let source = self.get_line_source();
             let statements = self.parse_statements()?;
             for stmt in &statements {
@@ -54,8 +55,9 @@ impl Parser {
                 Ok(n)
             }
             _ => {
+                let current_token = self.peek().map(|t| format!("{:?}", t)).unwrap_or_else(|| "end of input".to_string());
                 Err(BasicError::Syntax {
-                    message: ".Expected line number at start of line".to_string(),
+                    message: format!("Expected line number at start of line, got {}", current_token),
                     line_number: Some(self.current_line),
                 })
             }
@@ -177,8 +179,31 @@ impl Parser {
             }
             Some(Token::Input) => {
                 self.advance();
+
+                // Check if there's a prompt string
+                let prompt = if let Some(Token::String(s)) = self.peek().cloned() {
+                    self.advance();
+                    Some(s)
+                } else {
+                    None
+                };
+
+                // If there was a prompt, expect and skip a semicolon or comma
+                if prompt.is_some() {
+                    if self.check(&Token::Semicolon) || self.check(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        return Err(BasicError::Syntax {
+                            message: "Expected ';' or ',' after INPUT prompt".to_string(),
+                            line_number: Some(self.current_line),
+                        });
+                    }
+                }
+
+                // Now parse the variable
                 let var = self.parse_identifier()?;
-                Ok(Statement::Input { var })
+
+                Ok(Statement::Input { var, prompt })
             }
             Some(Token::If) => {
                 self.advance();
@@ -872,5 +897,69 @@ mod tests {
         } else {
             panic!("Expected syntax error");
         }
+    }
+
+    #[test]
+    fn test_parse_input_with_prompt() {
+        let tokens = vec![
+            Token::LineNumber(2060),
+            Token::Input,
+            Token::String("COMMAND".to_string()),
+            Token::Semicolon,
+            Token::Identifier("A$".to_string()),
+            Token::Newline,
+        ];
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse().unwrap();
+        
+        assert_eq!(program.lines.len(), 1);
+        assert_eq!(program.lines[0].line_number, 2060);
+        assert_eq!(program.lines[0].statements.len(), 1);
+        
+        if let Statement::Input { var, prompt } = &program.lines[0].statements[0] {
+            assert_eq!(var, "A$");
+            assert_eq!(prompt, &Some("COMMAND".to_string()));
+        } else {
+            panic!("Expected INPUT statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_complex_print_with_tab() {
+        // Test parsing the complex PRINT statement with TAB function
+        let tokens = vec![
+            Token::LineNumber(2840),
+            Token::Print,
+            Token::Identifier("TAB".to_string()),
+            Token::LeftParen,
+            Token::Number("8".to_string()),
+            Token::RightParen,
+            Token::Semicolon,
+            Token::Colon,
+            Token::Identifier("R1".to_string()),
+            Token::Equal,
+            Token::Identifier("I".to_string()),
+            Token::Colon,
+            Token::Gosub,
+            Token::Number("8790".to_string()),
+            Token::Colon,
+            Token::Print,
+            Token::Identifier("G2$".to_string()),
+            Token::Semicolon,
+            Token::String(" REPAIR COMPLETED.".to_string()),
+            Token::Newline,
+        ];
+        
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse().unwrap();
+        
+        println!("Parsed program:");
+        for line in &program.lines {
+            println!("  Line {}: {:?}", line.line_number, line.statements);
+        }
+        
+        assert_eq!(program.lines.len(), 1);
+        assert_eq!(program.lines[0].line_number, 2840);
+        assert_eq!(program.lines[0].statements.len(), 4); // PRINT, LET, GOSUB, PRINT
     }
 }
