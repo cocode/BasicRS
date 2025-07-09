@@ -147,46 +147,59 @@ impl Token {
 pub enum BasicError {
     Syntax {
         message: String,
-        line_number: Option<usize>,
+        basic_line_number: Option<usize>,
+        file_line_number: Option<usize>,
     },
     Runtime {
         message: String,
-        line_number: Option<usize>,
+        basic_line_number: Option<usize>,
+        file_line_number: Option<usize>,
     },
     Internal {
         message: String,
+        basic_line_number: Option<usize>,
+        file_line_number: Option<usize>,
     },
     Type {
         message: String,
-        line_number: Option<usize>,
+        basic_line_number: Option<usize>,
+        file_line_number: Option<usize>,
     },
 }
 
 impl fmt::Display for BasicError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BasicError::Syntax { message, line_number } => {
-                if let Some(line) = line_number {
-                    write!(f, "Syntax error at line {}: {}", line, message)
-                } else {
-                    write!(f, "Syntax error: {}", message)
+            BasicError::Syntax { message, basic_line_number, file_line_number } => {
+                match (basic_line_number, file_line_number) {
+                    (Some(basic), Some(file)) => write!(f, "Syntax error at BASIC line {} (file line {}): {}", basic, file, message),
+                    (Some(basic), None) => write!(f, "Syntax error at BASIC line {}: {}", basic, message),
+                    (None, Some(file)) => write!(f, "Syntax error at file line {}: {}", file, message),
+                    (None, None) => write!(f, "Syntax error: {}", message),
                 }
             }
-            BasicError::Runtime { message, line_number } => {
-                if let Some(line) = line_number {
-                    write!(f, "Runtime error at line {}: {}", line, message)
-                } else {
-                    write!(f, "Runtime error: {}", message)
+            BasicError::Runtime { message, basic_line_number, file_line_number } => {
+                match (basic_line_number, file_line_number) {
+                    (Some(basic), Some(file)) => write!(f, "Runtime error at BASIC line {} (file line {}): {}", basic, file, message),
+                    (Some(basic), None) => write!(f, "Runtime error at BASIC line {}: {}", basic, message),
+                    (None, Some(file)) => write!(f, "Runtime error at file line {}: {}", file, message),
+                    (None, None) => write!(f, "Runtime error: {}", message),
                 }
             }
-            BasicError::Internal { message } => {
-                write!(f, "Internal error: {}", message)
-            }
-            BasicError::Type { message, line_number } => {
-                if let Some(line) = line_number {
-                    write!(f, "Type error at line {}: {}", line, message)
-                } else {
-                    write!(f, "Type error: {}", message)
+            BasicError::Internal { message, basic_line_number, file_line_number } => {
+                        match (basic_line_number, file_line_number) {
+                            (Some(basic), Some(file)) => write!(f, "Internal error at BASIC line {} (file line {}): {}", basic, file, message),
+                            (Some(basic), None) => write!(f, "Internal error at BASIC line {}: {}", basic, message),
+                            (None, Some(file)) => write!(f, "Internal error at file line {}: {}", file, message),
+                            (None, None) => write!(f, "Internal error: {}", message),
+                        }
+                    }
+            BasicError::Type { message, basic_line_number, file_line_number } => {
+                match (basic_line_number, file_line_number) {
+                    (Some(basic), Some(file)) => write!(f, "Type error at BASIC line {} (file line {}): {}", basic, file, message),
+                    (Some(basic), None) => write!(f, "Type error at BASIC line {}: {}", basic, message),
+                    (None, Some(file)) => write!(f, "Type error at file line {}: {}", file, message),
+                    (None, None) => write!(f, "Type error: {}", message),
                 }
             }
         }
@@ -199,6 +212,8 @@ impl From<std::io::Error> for BasicError {
     fn from(error: std::io::Error) -> Self {
         BasicError::Internal {
             message: format!("I/O error: {}", error),
+            basic_line_number: None,
+            file_line_number: None,
         }
     }
 }
@@ -788,7 +803,8 @@ pub fn assert_syntax(value: bool, message: &str) -> Result<(), BasicError> {
     if !value {
         Err(BasicError::Syntax {
             message: message.to_string(),
-            line_number: None,
+            basic_line_number: None,
+            file_line_number: None,
         })
     } else {
         Ok(())
@@ -799,6 +815,8 @@ pub fn assert_internal(value: bool, message: &str) -> Result<(), BasicError> {
     if !value {
         Err(BasicError::Internal {
             message: message.to_string(),
+            basic_line_number: None,
+            file_line_number: None,
         })
     } else {
         Ok(())

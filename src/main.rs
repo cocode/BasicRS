@@ -41,7 +41,7 @@ fn main() {
                                     eprintln!("Runtime error: {}", message);
                                     process::exit(3);
                                 }
-                                BasicError::Internal { message } => {
+                                BasicError::Internal { message, basic_line_number, file_line_number } => {
                                     eprintln!("Internal error: {}", message);
                                     process::exit(4);
                                 }

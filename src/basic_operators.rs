@@ -38,7 +38,8 @@ impl MonoOp {
         if stack.len() < 1 {
             return Err(BasicError::Syntax {
                 message: "Not enough operands for unary operator".to_string(),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             });
         }
         Ok(())
@@ -52,11 +53,13 @@ impl MonoOp {
         let value = match &first {
             Token::Number(n) => n.parse::<f64>().map_err(|_| BasicError::Type {
                 message: "Invalid number format".to_string(),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             })?,
             _ => return Err(BasicError::Type {
                 message: "Expected number for unary operation".to_string(),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             }),
         };
         
@@ -89,7 +92,8 @@ impl StrMonoOp {
             Token::Number(n) => n.clone(),
             _ => return Err(BasicError::Type {
                 message: "Cannot convert token to string".to_string(),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             }),
         };
         
@@ -136,7 +140,8 @@ impl StrDollarMonoOp {
             Token::Identifier(s) => s.clone(),
             _ => return Err(BasicError::Type {
                 message: "Cannot convert token to string".to_string(),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             }),
         };
         
@@ -171,7 +176,8 @@ impl StrOp {
         if stack.len() < self.arg_count {
             return Err(BasicError::Syntax {
                 message: format!("Not enough operands for {}", self.name),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             });
         }
         Ok(())
@@ -189,7 +195,8 @@ impl StrOp {
                     Token::Identifier(s) => s.clone(),
                     _ => return Err(BasicError::Type {
                         message: "Cannot convert token to string".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     }),
                 };
                 args.push(value);

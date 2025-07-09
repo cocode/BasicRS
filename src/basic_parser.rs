@@ -58,7 +58,8 @@ impl Parser {
                 let current_token = self.peek().map(|t| format!("{:?}", t)).unwrap_or_else(|| "end of input".to_string());
                 Err(BasicError::Syntax {
                     message: format!("Expected line number at start of line, got {}", current_token),
-                    line_number: Some(self.current_line),
+                    basic_line_number: Some(self.current_line),
+                    file_line_number: None,
                 })
             }
         }
@@ -99,7 +100,8 @@ impl Parser {
                 self.advance();
                 let value = n.parse::<f64>().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric constant in DATA: {}", n),
-                    line_number: Some(self.current_line),
+                    basic_line_number: Some(self.current_line),
+                    file_line_number: None,
                 })?;
                 Ok(SymbolValue::Number(value))
             }
@@ -111,13 +113,15 @@ impl Parser {
                         self.advance();
                         let value = n.parse::<f64>().map_err(|_| BasicError::Syntax {
                             message: format!("Invalid numeric constant in DATA: -{}", n),
-                            line_number: Some(self.current_line),
+                            basic_line_number: Some(self.current_line),
+                            file_line_number: None,
                         })?;
                         Ok(SymbolValue::Number(-value))
                     }
                     _ => Err(BasicError::Syntax {
                         message: "Expected number after minus sign in DATA".to_string(),
-                        line_number: Some(self.current_line),
+                        basic_line_number: Some(self.current_line),
+                        file_line_number: None,
                     })
                 }
             }
@@ -127,11 +131,13 @@ impl Parser {
             }
             Some(other) => Err(BasicError::Syntax {
                 message: format!("Invalid token in DATA statement: {}", other),
-                line_number: Some(self.current_line),
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
             }),
             None => Err(BasicError::Syntax {
                 message: "Unexpected end of input in DATA statement".to_string(),
-                line_number: Some(self.current_line),
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
             }),
         }
     }
@@ -180,7 +186,8 @@ impl Parser {
                     let current_token = self.peek().map(|t| format!("{:?}", t)).unwrap_or_else(|| "end of input".to_string());
                     return Err(BasicError::Syntax {
                         message: format!("Unexpected token after PRINT expression: {}", current_token),
-                        line_number: Some(self.current_line),
+                        basic_line_number: Some(self.current_line),
+                        file_line_number: None,
                     });
                 }
                 
@@ -204,7 +211,8 @@ impl Parser {
                     } else {
                         return Err(BasicError::Syntax {
                             message: "Expected ';' or ',' after INPUT prompt".to_string(),
-                            line_number: Some(self.current_line),
+                            basic_line_number: Some(self.current_line),
+                            file_line_number: None,
                         });
                     }
                 }
@@ -418,7 +426,8 @@ impl Parser {
                 } else {
                     Err(BasicError::Syntax {
                         message: "Expected GOTO or GOSUB after ON expression".to_string(),
-                        line_number: Some(self.current_line),
+                        basic_line_number: Some(self.current_line),
+                        file_line_number: None,
                     })
                 }
             }
@@ -455,12 +464,14 @@ impl Parser {
                 Ok(Statement::Let { var, value })
             }
             Some(token) => Err(BasicError::Syntax {
-                message: format!("Unexpected token: {}", token),
-                line_number: Some(self.current_line),
+                message: format!("Unexpected token: {:?}", token),
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
             }),
             None => Err(BasicError::Syntax {
                 message: "Unexpected end of input".to_string(),
-                line_number: Some(self.current_line),
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
             }),
         }
     }
@@ -625,7 +636,8 @@ impl Parser {
             }
             _ => Err(BasicError::Syntax {
                 message: "Expected expression".to_string(),
-                line_number: None,
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
             }),
         }
     }
@@ -665,7 +677,8 @@ impl Parser {
         } else {
             Err(BasicError::Syntax {
                 message: message.to_string(),
-                line_number: None,
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
             })
         }
     }
@@ -683,7 +696,8 @@ impl Parser {
             }
             _ => Err(BasicError::Syntax {
                 message: "Expected identifier".to_string(),
-                line_number: None,
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
             }),
         }
     }
@@ -695,12 +709,14 @@ impl Parser {
                 self.advance();
                 n.parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid number: {}", n),
-                    line_number: Some(self.current_line),
+                    basic_line_number: Some(self.current_line),
+                    file_line_number: None,
                 })
             }
             _ => Err(BasicError::Syntax {
                 message: "Expected number".to_string(),
-                line_number: None,
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
             }),
         }
     }
@@ -894,9 +910,10 @@ mod tests {
         let result = parser.parse();
         
         assert!(result.is_err());
-        if let Err(BasicError::Syntax { message, line_number }) = result {
+        if let Err(BasicError::Syntax { message, basic_line_number, file_line_number }) = result {
             assert!(message.contains("line number"));
-            assert_eq!(line_number, Some(1));
+            assert_eq!(basic_line_number, Some(1));
+            assert_eq!(file_line_number, None);
         } else {
             panic!("Expected syntax error");
         }
@@ -914,9 +931,10 @@ mod tests {
         let result = parser.parse();
         
         assert!(result.is_err());
-        if let Err(BasicError::Syntax { message, line_number }) = result {
+        if let Err(BasicError::Syntax { message, basic_line_number, file_line_number }) = result {
             assert!(message.contains("Unexpected token"));
-            assert_eq!(line_number, Some(10));
+            assert_eq!(basic_line_number, Some(10));
+            assert_eq!(file_line_number, None);
         } else {
             panic!("Expected syntax error");
         }

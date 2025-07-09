@@ -94,7 +94,8 @@ impl<'a> Lexer<'a> {
             Err(_) => {
                 Err(BasicError::Syntax {
                     message: format!("Invalid line number: {}", number),
-                    line_number: Some(self.file_line_number),
+                    basic_line_number: self.basic_line_number,
+                    file_line_number: Some(self.file_line_number),
                 })
             }
         }
@@ -159,7 +160,8 @@ impl<'a> Lexer<'a> {
                         if c == '\n' || c == '\r' {
                             return Err(BasicError::Syntax {
                                 message: "Unterminated string literal".to_string(),
-                                line_number: Some(self.file_line_number),
+                                basic_line_number: self.basic_line_number,
+                                file_line_number: Some(self.file_line_number),
                             });
                         }
                         string.push(c);
@@ -169,7 +171,8 @@ impl<'a> Lexer<'a> {
                     if !found_closing_quote {
                         return Err(BasicError::Syntax {
                             message: "Unterminated string literal".to_string(),
-                            line_number: Some(self.file_line_number),
+                            basic_line_number: self.basic_line_number,
+                            file_line_number: Some(self.file_line_number),
                         });
                     }
                     
@@ -262,7 +265,8 @@ impl<'a> Lexer<'a> {
                         message: format!("Unexpected character: '{}' basic line {} file line {}", c,
                                          self.basic_line_number.unwrap_or(0).to_string(),
                                          self.file_line_number),
-                        line_number: Some(self.file_line_number),
+                        basic_line_number: self.basic_line_number,
+                        file_line_number: Some(self.file_line_number),
                     });
                 }
             }
@@ -350,7 +354,8 @@ impl<'a> Lexer<'a> {
         // If we get here, we couldn't match anything
         Err(BasicError::Syntax {
             message: format!("Invalid identifier: {}", input_str),
-            line_number: Some(self.file_line_number),
+            basic_line_number: self.basic_line_number,
+            file_line_number: Some(self.file_line_number),
         })
     }
 
@@ -607,9 +612,10 @@ mod tests {
         let result = lexer.tokenize();
         assert!(result.is_err());
         
-        if let Err(BasicError::Syntax { message, line_number }) = result {
+        if let Err(BasicError::Syntax { message, basic_line_number, file_line_number }) = result {
             assert!(message.contains("Unterminated string"));
-            assert_eq!(line_number, Some(1));
+            assert_eq!(basic_line_number, None); // No basic line number for this error
+            assert_eq!(file_line_number, Some(1));
         } else {
             panic!("Expected syntax error");
         }

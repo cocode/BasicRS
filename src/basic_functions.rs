@@ -29,7 +29,8 @@ fn validate_arg_count(args: &[String], expected_count: usize, function_name: &st
                 expected_count, 
                 if expected_count == 1 { "" } else { "s" }
             ),
-            line_number: None,
+            basic_line_number: None,
+            file_line_number: None,
         });
     }
     Ok(())
@@ -56,7 +57,8 @@ fn validate_and_convert_args(args: &[String], arg_types: &[ArgType], function_na
                         function_name, 
                         arg
                     ),
-                    line_number: None,
+                    basic_line_number: None,
+                    file_line_number: None,
                 })?;
                 converted_args.push(arg.clone());
             }

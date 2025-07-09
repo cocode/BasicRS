@@ -11,7 +11,8 @@ impl SymbolTable {
     pub fn get_array_element(&self, name: &str, indices: &[usize]) -> Result<SymbolValue, BasicError> {
         let symbol = self.get_symbol(name).ok_or(BasicError::Runtime {
             message: format!("Array '{}' not found", name),
-            line_number: None,
+            basic_line_number: None,
+            file_line_number: None,
         })?;
 
         match symbol {
@@ -19,14 +20,16 @@ impl SymbolTable {
                 if indices.len() != 1 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 1 index", name),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 let index = indices[0];
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 Ok(SymbolValue::Number(vec[index]))
@@ -36,7 +39,8 @@ impl SymbolTable {
                 if indices.len() != 2 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 2 indices", name),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 let row = indices[0];
@@ -44,7 +48,8 @@ impl SymbolTable {
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 Ok(SymbolValue::Number(vec[row][col]))
@@ -54,14 +59,16 @@ impl SymbolTable {
                 if indices.len() != 1 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 1 index", name),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 let index = indices[0];
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 Ok(SymbolValue::String(vec[index].clone()))
@@ -71,7 +78,8 @@ impl SymbolTable {
                 if indices.len() != 2 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 2 indices", name),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 let row = indices[0];
@@ -79,7 +87,8 @@ impl SymbolTable {
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 Ok(SymbolValue::String(vec[row][col].clone()))
@@ -87,7 +96,8 @@ impl SymbolTable {
 
             _ => Err(BasicError::Runtime {
                 message: format!("'{}' is not an array", name),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             }),
         }
     }
@@ -95,7 +105,8 @@ impl SymbolTable {
     pub fn set_array_element(&mut self, name: &str, indices: &[usize], value: SymbolValue) -> Result<(), BasicError> {
         let symbol = self.symbols.get_mut(name).ok_or(BasicError::Runtime {
             message: format!("Array '{}' not found", name),
-            line_number: None,
+            basic_line_number: None,
+            file_line_number: None,
         })?;
 
         match symbol {
@@ -103,14 +114,16 @@ impl SymbolTable {
                 if indices.len() != 1 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 1 index", name),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 let index = indices[0];
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 if let SymbolValue::Number(n) = value {
@@ -119,7 +132,8 @@ impl SymbolTable {
                 } else {
                     Err(BasicError::Runtime {
                         message: "Type mismatch: expected number".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     })
                 }
             }
@@ -128,7 +142,8 @@ impl SymbolTable {
                 if indices.len() != 2 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 2 indices", name),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 let row = indices[0];
@@ -136,7 +151,8 @@ impl SymbolTable {
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 if let SymbolValue::Number(n) = value {
@@ -145,7 +161,8 @@ impl SymbolTable {
                 } else {
                     Err(BasicError::Runtime {
                         message: "Type mismatch: expected number".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     })
                 }
             }
@@ -154,14 +171,16 @@ impl SymbolTable {
                 if indices.len() != 1 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 1 index", name),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 let index = indices[0];
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 if let SymbolValue::String(s) = value {
@@ -170,7 +189,8 @@ impl SymbolTable {
                 } else {
                     Err(BasicError::Runtime {
                         message: "Type mismatch: expected string".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     })
                 }
             }
@@ -179,7 +199,8 @@ impl SymbolTable {
                 if indices.len() != 2 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 2 indices", name),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 let row = indices[0];
@@ -187,7 +208,8 @@ impl SymbolTable {
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     });
                 }
                 if let SymbolValue::String(s) = value {
@@ -196,14 +218,16 @@ impl SymbolTable {
                 } else {
                     Err(BasicError::Runtime {
                         message: "Type mismatch: expected string".to_string(),
-                        line_number: None,
+                        basic_line_number: None,
+                        file_line_number: None,
                     })
                 }
             }
 
             _ => Err(BasicError::Runtime {
                 message: format!("'{}' is not an array", name),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             }),
         }
     }
@@ -212,7 +236,8 @@ impl SymbolTable {
         if self.symbols.contains_key(&name) {
             return Err(BasicError::Runtime {
                 message: format!("Array '{}' already declared", name),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             });
         }
 
@@ -244,7 +269,8 @@ impl SymbolTable {
 
             _ => Err(BasicError::Runtime {
                 message: "Only 1D and 2D arrays are supported".to_string(),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             }),
         }
     }
@@ -252,7 +278,8 @@ impl SymbolTable {
         if self.symbols.contains_key(&name) {
             return Err(BasicError::Runtime {
                 message: format!("Function '{}' already defined", name),
-                line_number: None,
+                basic_line_number: None,
+                file_line_number: None,
             });
         }
 
