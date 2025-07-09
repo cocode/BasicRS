@@ -5,7 +5,7 @@ use crate::basic_symbols::SymbolTable;
 
 use crate::basic_types::{
     Program, ProgramLine, Statement, Expression, BasicError,
-    ExpressionType, RunStatus, SymbolValue,
+    ExpressionType, RunStatus, SymbolValue, Token,
 };
 
 use crate::basic_functions::PredefinedFunctions;
@@ -48,11 +48,12 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new(program: Program) -> Self {
-        // Build line number map
+        // Only build the line number map and do not collect DATA values here
         let mut line_number_map = HashMap::new();
         for (i, line) in program.lines.iter().enumerate() {
             line_number_map.insert(line.line_number, i);
         }
+        // DATA values are already collected elsewhere in the codebase.
         
         let internal_symbols = SymbolTable::new();
         let symbols = internal_symbols.get_nested_scope();
@@ -65,7 +66,7 @@ impl Interpreter {
             for_stack: Vec::new(),
             gosub_stack: Vec::new(),
             data_pointer: 0,
-            data_values: Vec::new(),
+            data_values: Vec::new(), // Initialize to empty, data values are collected later
             run_status: RunStatus::Run,
             trace_file: None,
             coverage: None,
@@ -196,11 +197,20 @@ impl Interpreter {
                         self.symbols.set_array_element(name, &indices, result)?;
                         Ok(())
                     }
-                    _ => Err(BasicError::Runtime {
-                        message: "Invalid left-hand side in assignment".to_string(),
-                        basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
-                    })
+                    _ => {
+                        // Try to evaluate the left-hand side as an expression
+                        // This handles cases like LET A = B where A might be a variable
+                        if let ExpressionType::Variable(name) = &var.expr_type {
+                            self.put_symbol(name.clone(), result);
+                            Ok(())
+                        } else {
+                            Err(BasicError::Runtime {
+                                message: "Invalid left-hand side in assignment".to_string(),
+                                basic_line_number: Some(self.get_current_line().line_number),
+                                file_line_number: Some(self.file_line_number),
+                            })
+                        }
+                    }
                 }
             }
             Statement::Print { expressions } => {
@@ -394,7 +404,7 @@ impl Interpreter {
                 Ok(())
             }
             Statement::Rem { .. } => Ok(()),
-            Statement::Data { .. } => Ok(()),  // DATA is ignored at runtime
+            Statement::Data { .. } => Ok(()),
             Statement::Read { vars } => {
                 for var_expr in vars {
                     if self.data_pointer >= self.data_values.len() {
@@ -404,22 +414,48 @@ impl Interpreter {
                             file_line_number: Some(self.file_line_number),
                         });
                     }
+                    
                     let value = self.data_values[self.data_pointer].clone();
-                    self.assign_lvalue(var_expr, value)?;
                     self.data_pointer += 1;
+                    
+                    match &var_expr.expr_type {
+                        ExpressionType::Variable(name) => {
+                            self.put_symbol(name.clone(), value);
+                        }
+                        ExpressionType::Array { name, indices } => {
+                            let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
+                                .map(|expr| match self.evaluate_expression(expr)? {
+                                    SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                                    _ => Err(BasicError::Runtime {
+                                        message: "Array index must be a non-negative integer".to_string(),
+                                        basic_line_number: Some(self.get_current_line().line_number),
+                                        file_line_number: Some(self.file_line_number),
+                                    })
+                                })
+                                .collect();
+                            let indices = idx_values?;
+                            self.symbols.set_array_element(name, &indices, value)?;
+                        }
+                        _ => {
+                            return Err(BasicError::Runtime {
+                                message: "Invalid variable in READ statement".to_string(),
+                                basic_line_number: Some(self.get_current_line().line_number),
+                                file_line_number: Some(self.file_line_number),
+                            });
+                        }
+                    }
                 }
                 Ok(())
             }
-            Statement::Restore {line}=> {
-                match line {
-                    Some(line_number) => {
-                        print!("TODO restore <LINE>{}", line_number);
-                    }
-                    None => {
-                        print!("TODO restore");
-                    }
+            Statement::Restore { line } => {
+                if let Some(line_num) = line {
+                    // Find the line number and reset data pointer
+                    // For now, just reset to beginning
+                    self.data_pointer = 0;
+                } else {
+                    // Reset to beginning
+                    self.data_pointer = 0;
                 }
-                self.data_pointer = 0;
                 Ok(())
             }
             Statement::Dim { arrays } => {
@@ -490,31 +526,120 @@ impl Interpreter {
             }
 
             ExpressionType::FunctionCall { name, args } => {
-                let mut evaluated_args = Vec::new();
-                for arg in args {
-                    let value = self.evaluate_expression(arg)?;
-                    if let SymbolValue::Number(n) = value {
-                        evaluated_args.push(n);
-                    } else {
+                // Check if this is a function that uses the new function system
+                if let Some(function) = crate::basic_functions::get_function(name) {
+                    let expected_types = function.arg_types();
+                    if expected_types.len() != args.len() {
                         return Err(BasicError::Runtime {
-                            message: format!("Invalid argument for function '{}'", name),
+                            message: format!("Function '{}' expects {} arguments, got {}", name, expected_types.len(), args.len()),
                             basic_line_number: None,
                             file_line_number: Some(self.file_line_number),
                         });
                     }
-                }
-
-                let funcs = PredefinedFunctions::new();
-
-                if let Some(result) = funcs.call(name, &evaluated_args) {
-                    Ok(SymbolValue::Number(result))
+                    let mut evaluated_args = Vec::new();
+                    for (arg, expected_type) in args.iter().zip(expected_types.iter()) {
+                        let value = self.evaluate_expression(arg)?;
+                        match (expected_type, value) {
+                            (crate::basic_functions::ArgType::Number, SymbolValue::Number(n)) => {
+                                evaluated_args.push(Token::new_number(&n.to_string()));
+                            }
+                            (crate::basic_functions::ArgType::String, SymbolValue::String(s)) => {
+                                evaluated_args.push(Token::new_string(&s));
+                            }
+                            (crate::basic_functions::ArgType::Number, other) => {
+                                return Err(BasicError::Runtime {
+                                    message: format!("Function '{}' expects a number argument, got {:?}", name, other),
+                                    basic_line_number: None,
+                                    file_line_number: Some(self.file_line_number),
+                                });
+                            }
+                            (crate::basic_functions::ArgType::String, other) => {
+                                return Err(BasicError::Runtime {
+                                    message: format!("Function '{}' expects a string argument, got {:?}", name, other),
+                                    basic_line_number: None,
+                                    file_line_number: Some(self.file_line_number),
+                                });
+                            }
+                        }
+                    }
+                    let result = function.call(evaluated_args)?;
+                    match result {
+                        Token::Number(n) => Ok(SymbolValue::Number(n.parse().unwrap_or(0.0))),
+                        Token::String(s) => Ok(SymbolValue::String(s)),
+                        _ => Err(BasicError::Runtime {
+                            message: format!("Unexpected result type from function '{}'", name),
+                            basic_line_number: None,
+                            file_line_number: Some(self.file_line_number),
+                        }),
+                    }
                 } else {
+                    // Check for user-defined functions (FNA, FNB, etc.)
+                    if name.len() == 3 && name.starts_with("FN") && name.chars().nth(2).unwrap().is_ascii_uppercase() {
+                        // User-defined function
+                        if let Some(SymbolValue::FunctionDef { param, expr }) = self.internal_symbols.get_symbol(name) {
+                            let mut evaluated_args = Vec::new();
+                            for arg in args {
+                                let value = self.evaluate_expression(arg)?;
+                                if let SymbolValue::Number(n) = value {
+                                    evaluated_args.push(n);
+                                } else {
+                                    return Err(BasicError::Runtime {
+                                        message: format!("User-defined function '{}' expects number arguments", name),
+                                        basic_line_number: None,
+                                        file_line_number: Some(self.file_line_number),
+                                    });
+                                }
+                            }
+                            
+                            // Create a temporary scope with the function parameters
+                            let original_symbols = std::mem::replace(&mut self.symbols, self.symbols.get_nested_scope());
+                            
+                            // Bind parameters to arguments
+                            for (param_name, arg_value) in param.iter().zip(evaluated_args.iter()) {
+                                self.symbols.put_symbol(param_name.clone(), SymbolValue::Number(*arg_value));
+                            }
+                            
+                            // Evaluate the function body
+                            let result = self.evaluate_expression(expr)?;
+                            
+                            // Restore original symbol table
+                            self.symbols = original_symbols;
+                            
+                            Ok(result)
+                        } else {
+                            Err(BasicError::Runtime {
+                                message: format!("Undefined user function '{}'", name),
+                                basic_line_number: None,
+                                file_line_number: Some(self.file_line_number),
+                            })
+                        }
+                    } else {
+                        // Fall back to old function system for math functions
+                    let mut evaluated_args = Vec::new();
+                    for arg in args {
+                        let value = self.evaluate_expression(arg)?;
+                        if let SymbolValue::Number(n) = value {
+                            evaluated_args.push(n);
+                        } else {
+                            return Err(BasicError::Runtime {
+                                message: format!("Invalid argument for function '{}'", name),
+                                basic_line_number: None,
+                                file_line_number: Some(self.file_line_number),
+                            });
+                        }
+                    }
+
+                    let funcs = PredefinedFunctions::new();
+
+                    if let Some(result) = funcs.call(name, &evaluated_args) {
+                        Ok(SymbolValue::Number(result))
+                    } else {
                         Err(BasicError::Runtime {
                             message: format!("Unknown function '{}'", name),
                             basic_line_number: None,
                             file_line_number: Some(self.file_line_number),
                         })
-                    // self.internal_symbols.call_function(name, &evaluated_args)
+                    }
                 }
             }
 
@@ -556,15 +681,17 @@ impl Interpreter {
                         Ok(SymbolValue::Number(result))
                     }
                     (SymbolValue::String(a), SymbolValue::String(b)) => {
-                        if op == "+" {
-                            Ok(SymbolValue::String(format!("{}{}", a, b)))
-                        } else {
-                            Err(BasicError::Runtime {
+                        let result = match op.as_str() {
+                            "+" => Ok(SymbolValue::String(format!("{}{}", a, b))),
+                            "<>" => Ok(SymbolValue::Number(if a != b { -1.0 } else { 0.0 })),
+                            "=" => Ok(SymbolValue::Number(if a == b { -1.0 } else { 0.0 })),
+                            _ => Err(BasicError::Runtime {
                                 message: format!("Invalid operator '{}' for strings", op),
                                 basic_line_number: Some(self.get_current_line().line_number),
                                 file_line_number: Some(self.file_line_number),
-                            })
-                        }
+                            }),
+                        };
+                        result
                     }
                     _ => Err(BasicError::Runtime {
                         message: format!("Type mismatch for operator '{}'", op),
@@ -849,4 +976,5 @@ mod tests {
         }
 
         Ok(())
-    }}
+    }
+}
