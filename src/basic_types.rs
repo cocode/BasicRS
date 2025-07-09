@@ -717,15 +717,15 @@ pub fn is_valid_identifier(name: &str) -> bool {
         }
     }
     
-    // Standard BASIC variable rules: 1-2 characters, optional digit or $
+    // Standard BASIC variable rules: letter + optional digit + optional $
     if chars.len() > 1 {
         let last_char = chars[chars.len() - 1];
         if !last_char.is_ascii_digit() && last_char != '$' {
             return false;
         }
         
-        // If there are more than 2 characters, it's invalid for variables
-        if chars.len() > 2 {
+        // Allow up to 3 characters: letter + digit + $
+        if chars.len() > 3 {
             return false;
         }
     }
