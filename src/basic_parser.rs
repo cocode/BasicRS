@@ -335,12 +335,6 @@ impl Parser {
                         break;
                     }
                 }
-                
-                // Consume the newline if present
-                if self.check(&Token::Newline) {
-                    self.advance();
-                }
-
                 Ok(Statement::Read { vars })
             }
             Some(Token::Restore) => {
