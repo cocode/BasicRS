@@ -5,6 +5,18 @@ use basic_rs::basic_parser::Parser;
 use basic_rs::basic_lexer::Lexer;
 use basic_rs::basic_types::RunStatus;
 
+fn print_basic_error(kind: &str, message: &str, basic_line_number: &Option<usize>, file_line_number: &Option<usize>) {
+    let mut parts = vec![format!("{} error:", kind)];
+    if let Some(basic_line) = basic_line_number {
+        parts.push(format!("BASIC line {}", basic_line));
+    }
+    if let Some(file_line) = file_line_number {
+        parts.push(format!("file line {}", file_line));
+    }
+    let label = parts.join(", ");
+    eprintln!("{} {}", label, message);
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
@@ -59,19 +71,19 @@ fn main() {
                             use basic_rs::basic_types::BasicError;
                             match &e {
                                 BasicError::Syntax { message, basic_line_number, file_line_number } => {
-                                    eprintln!("Syntax error: {}", message);
+                                    print_basic_error("Syntax", message, basic_line_number, file_line_number);
                                     process::exit(5);
                                 }
                                 BasicError::Runtime { message, basic_line_number, file_line_number } => {
-                                    eprintln!("Runtime error: {}", message);
+                                    print_basic_error("Runtime", message, basic_line_number, file_line_number);
                                     process::exit(6);
                                 }
                                 BasicError::Internal { message, basic_line_number, file_line_number } => {
-                                    eprintln!("Internal error: {}", message);
+                                    print_basic_error("Internal", message, basic_line_number, file_line_number);
                                     process::exit(7);
                                 }
                                 BasicError::Type { message, basic_line_number, file_line_number } => {
-                                    eprintln!("Type error: {}", message);
+                                    print_basic_error("Type", message, basic_line_number, file_line_number);
                                     process::exit(8);
                                 }
                             }
