@@ -128,6 +128,22 @@ impl<'a> Lexer<'a> {
                     }
                     tokens.push(Token::Number(number));
                 }
+                '.' => {
+                    // This is a decimal number starting with a decimal point
+                    let mut number = String::new();
+                    number.push('.');
+                    self.advance();
+                    while self.position < self.chars.len() {
+                        let c = self.chars[self.position];
+                        if c.is_ascii_digit() {
+                            number.push(c);
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+                    tokens.push(Token::Number(number));
+                }
                 '"' => {
                     let mut string = String::new();
                     self.advance(); // Skip opening quote
@@ -654,5 +670,37 @@ mod tests {
         assert_eq!(tokens[6], Token::Identifier("B".to_string()));
         assert_eq!(tokens[7], Token::Step);
         assert_eq!(tokens[8], Token::Identifier("C".to_string()));
+    }
+
+    #[test]
+    fn test_decimal_number_in_comparison() {
+        // Test the specific failing case: 850 IFR1>.98THENK3=3:K9=K9+3:GOTO980
+        let mut lexer = Lexer::new("850 IFR1>.98THENK3=3:K9=K9+3:GOTO980");
+        let tokens = lexer.tokenize().unwrap();
+        
+        println!("Tokens for '850 IFR1>.98THENK3=3:K9=K9+3:GOTO980':");
+        for (i, token) in tokens.iter().enumerate() {
+            println!("  {}: {:?}", i, token);
+        }
+        
+        // Should parse as: LineNumber(850), If, Identifier("R1"), Greater, Number(".98"), Then, Identifier("K3"), Equal, Number("3"), Colon, Identifier("K9"), Equal, Identifier("K9"), Plus, Number("3"), Colon, Goto, Number("980")
+        assert_eq!(tokens[0], Token::LineNumber(850));
+        assert_eq!(tokens[1], Token::If);
+        assert_eq!(tokens[2], Token::Identifier("R1".to_string()));
+        assert_eq!(tokens[3], Token::Greater);
+        assert_eq!(tokens[4], Token::Number(".98".to_string()));
+        assert_eq!(tokens[5], Token::Then);
+        assert_eq!(tokens[6], Token::Identifier("K3".to_string()));
+        assert_eq!(tokens[7], Token::Equal);
+        assert_eq!(tokens[8], Token::Number("3".to_string()));
+        assert_eq!(tokens[9], Token::Colon);
+        assert_eq!(tokens[10], Token::Identifier("K9".to_string()));
+        assert_eq!(tokens[11], Token::Equal);
+        assert_eq!(tokens[12], Token::Identifier("K9".to_string()));
+        assert_eq!(tokens[13], Token::Plus);
+        assert_eq!(tokens[14], Token::Number("3".to_string()));
+        assert_eq!(tokens[15], Token::Colon);
+        assert_eq!(tokens[16], Token::Goto);
+        assert_eq!(tokens[17], Token::Number("980".to_string()));
     }
 } 
