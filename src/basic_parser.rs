@@ -142,7 +142,6 @@ impl Parser {
         }
     }
     fn parse_statement(&mut self) -> Result<Statement, BasicError> {
-        let token = self.peek().cloned();
         match self.peek() {
             Some(Token::Let) => {
                 self.advance();
