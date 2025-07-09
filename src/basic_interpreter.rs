@@ -576,7 +576,13 @@ impl Interpreter {
                     // Check for user-defined functions (FNA, FNB, etc.)
                     if name.len() == 3 && name.starts_with("FN") && name.chars().nth(2).unwrap().is_ascii_uppercase() {
                         // User-defined function
-                        if let Some(SymbolValue::FunctionDef { param, expr }) = self.internal_symbols.get_symbol(name) {
+                        let func_def = if let Some(SymbolValue::FunctionDef { param, expr }) = self.internal_symbols.get_symbol(name) {
+                            Some((param.clone(), expr.clone()))
+                        } else {
+                            None
+                        };
+
+                        if let Some((param, expr)) = func_def {
                             let mut evaluated_args = Vec::new();
                             for arg in args {
                                 let value = self.evaluate_expression(arg)?;
@@ -592,7 +598,8 @@ impl Interpreter {
                             }
                             
                             // Create a temporary scope with the function parameters
-                            let original_symbols = std::mem::replace(&mut self.symbols, self.symbols.get_nested_scope());
+                            let nested_scope = self.symbols.get_nested_scope();
+                            let original_symbols = std::mem::replace(&mut self.symbols, nested_scope);
                             
                             // Bind parameters to arguments
                             for (param_name, arg_value) in param.iter().zip(evaluated_args.iter()) {
@@ -600,7 +607,7 @@ impl Interpreter {
                             }
                             
                             // Evaluate the function body
-                            let result = self.evaluate_expression(expr)?;
+                            let result = self.evaluate_expression(&expr)?;
                             
                             // Restore original symbol table
                             self.symbols = original_symbols;
@@ -615,30 +622,31 @@ impl Interpreter {
                         }
                     } else {
                         // Fall back to old function system for math functions
-                    let mut evaluated_args = Vec::new();
-                    for arg in args {
-                        let value = self.evaluate_expression(arg)?;
-                        if let SymbolValue::Number(n) = value {
-                            evaluated_args.push(n);
+                        let mut evaluated_args = Vec::new();
+                        for arg in args {
+                            let value = self.evaluate_expression(arg)?;
+                            if let SymbolValue::Number(n) = value {
+                                evaluated_args.push(n);
+                            } else {
+                                return Err(BasicError::Runtime {
+                                    message: format!("Invalid argument for function '{}'", name),
+                                    basic_line_number: None,
+                                    file_line_number: Some(self.file_line_number),
+                                });
+                            }
+                        }
+
+                        let funcs = PredefinedFunctions::new();
+
+                        if let Some(result) = funcs.call(name, &evaluated_args) {
+                            Ok(SymbolValue::Number(result))
                         } else {
-                            return Err(BasicError::Runtime {
-                                message: format!("Invalid argument for function '{}'", name),
+                            Err(BasicError::Runtime {
+                                message: format!("Unknown function '{}'", name),
                                 basic_line_number: None,
                                 file_line_number: Some(self.file_line_number),
-                            });
+                            })
                         }
-                    }
-
-                    let funcs = PredefinedFunctions::new();
-
-                    if let Some(result) = funcs.call(name, &evaluated_args) {
-                        Ok(SymbolValue::Number(result))
-                    } else {
-                        Err(BasicError::Runtime {
-                            message: format!("Unknown function '{}'", name),
-                            basic_line_number: None,
-                            file_line_number: Some(self.file_line_number),
-                        })
                     }
                 }
             }
@@ -725,11 +733,7 @@ impl Interpreter {
                 }
             }
 
-            _ => Err(BasicError::Runtime {
-                message: "Unsupported expression type".to_string(),
-                basic_line_number: Some(self.get_current_line().line_number),
-                file_line_number: Some(self.file_line_number),
-            }),
+
         }
     }
     fn get_symbol(&self, name: &str) -> Result<SymbolValue, BasicError> {
@@ -747,7 +751,7 @@ impl Interpreter {
         }
     }
     fn get_symbol_table(&self) -> &SymbolTable {
-        return &self.symbols
+        &self.symbols
     }
 
     fn put_symbol(&mut self, name: String, value: SymbolValue) {
