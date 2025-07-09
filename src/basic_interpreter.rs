@@ -115,20 +115,21 @@ impl Interpreter {
         self.run_status = status;
     }
 
-    pub fn run(&mut self) -> RunStatus {
+    pub fn run(&mut self) -> Result<(), BasicError> {
         while self.run_status == RunStatus::Run {
             let current_line = self.get_current_line().line_number;
+            println!("current line {}", current_line);
             let current_offset = self.location.offset;
             
             // Check breakpoints
             if self.breakpoints.contains(&(current_line, current_offset)) {
                 self.run_status = RunStatus::BreakCode;
-                return self.run_status;
+                return Ok(());
             }
             
             // Get current statement before any trace/coverage operations
             let current_stmt = self.get_current_stmt().clone();
-            
+
             // Write trace
             self.do_trace(&current_stmt);
             // Update coverage before executing
@@ -152,12 +153,11 @@ impl Interpreter {
                         BasicError::Internal { .. } => RunStatus::EndErrorInternal,
                         BasicError::Type { .. } => RunStatus::EndErrorType,
                     };
-                    return self.run_status;
+                    return Err(err);
                 }
             }
         }
-        
-        self.run_status
+        Ok(())
     }
 
     fn do_trace(&mut self, current_stmt: &Statement) {
@@ -499,6 +499,78 @@ impl Interpreter {
                 }
             }
 
+            ExpressionType::BinaryOp { op, left, right } => {
+                let left_val = self.evaluate_expression(left)?;
+                let right_val = self.evaluate_expression(right)?;
+                
+                match (left_val, right_val) {
+                    (SymbolValue::Number(a), SymbolValue::Number(b)) => {
+                        let result = match op.as_str() {
+                            "+" => a + b,
+                            "-" => a - b,
+                            "*" => a * b,
+                            "/" => {
+                                if b == 0.0 {
+                                    return Err(BasicError::Runtime {
+                                        message: "Division by zero".to_string(),
+                                        line_number: expr.line_number,
+                                    });
+                                }
+                                a / b
+                            }
+                            "^" => a.powf(b),
+                            "=" => if a == b { -1.0 } else { 0.0 },
+                            "<>" => if a != b { -1.0 } else { 0.0 },
+                            "<" => if a < b { -1.0 } else { 0.0 },
+                            "<=" => if a <= b { -1.0 } else { 0.0 },
+                            ">" => if a > b { -1.0 } else { 0.0 },
+                            ">=" => if a >= b { -1.0 } else { 0.0 },
+                            _ => return Err(BasicError::Runtime {
+                                message: format!("Unknown binary operator: {}", op),
+                                line_number: expr.line_number,
+                            }),
+                        };
+                        Ok(SymbolValue::Number(result))
+                    }
+                    (SymbolValue::String(a), SymbolValue::String(b)) => {
+                        if op == "+" {
+                            Ok(SymbolValue::String(format!("{}{}", a, b)))
+                        } else {
+                            Err(BasicError::Runtime {
+                                message: format!("Invalid operator '{}' for strings", op),
+                                line_number: expr.line_number,
+                            })
+                        }
+                    }
+                    _ => Err(BasicError::Runtime {
+                        message: format!("Type mismatch for operator '{}'", op),
+                        line_number: expr.line_number,
+                    }),
+                }
+            }
+
+            ExpressionType::UnaryOp { op, expr } => {
+                let val = self.evaluate_expression(expr)?;
+                
+                match val {
+                    SymbolValue::Number(n) => {
+                        let result = match op.as_str() {
+                            "-" => -n,
+                            "NOT" => if n == 0.0 { -1.0 } else { 0.0 },
+                            _ => return Err(BasicError::Runtime {
+                                message: format!("Unknown unary operator: {}", op),
+                                line_number: expr.line_number,
+                            }),
+                        };
+                        Ok(SymbolValue::Number(result))
+                    }
+                    _ => Err(BasicError::Runtime {
+                        message: format!("Invalid operand type for unary operator '{}'", op),
+                        line_number: expr.line_number,
+                    }),
+                }
+            }
+
             _ => Err(BasicError::Runtime {
                 message: "Unsupported expression type".to_string(),
                 line_number: expr.line_number,
@@ -621,7 +693,7 @@ mod tests {
         ]);
         
         let mut interpreter = Interpreter::new(program);
-        interpreter.run();
+        interpreter.run()?;
         
         assert_eq!(interpreter.get_symbol("X")?, SymbolValue::Number(1.0));
         assert_eq!(interpreter.get_symbol("Y")?, SymbolValue::Number(2.0));
@@ -642,7 +714,7 @@ mod tests {
         println!("Program has {} lines.", program.lines.len());
         println!("{}", program);
         let mut interpreter = Interpreter::new(program);
-        interpreter.run();
+        interpreter.run()?;
         println!("SYMBOLLLLLLS");
         let symbols = interpreter.get_symbol_table();
         for (name, value) in symbols.dump() {
@@ -666,7 +738,7 @@ mod tests {
         let mut parser = Parser::new(tokens);
         let program = parser.parse()?; // ← You need this line to obtain the program
         let mut interpreter = Interpreter::new(program);
-        interpreter.run();
+        interpreter.run()?;
         assert_eq!(interpreter.get_symbol("X")?, SymbolValue::Number(1.0));
         assert!(interpreter.get_symbol("Y").is_err()); // Should be skipped after REM
         assert_eq!(interpreter.get_symbol("Z")?, SymbolValue::Number(3.0));
@@ -680,9 +752,8 @@ mod tests {
         ]);
         
         let mut interpreter = Interpreter::new(program);
-        let status = interpreter.run();
-        
-        assert_eq!(status, RunStatus::EndErrorRuntime);
+        let result = interpreter.run();
+        assert!(matches!(result, Err(BasicError::Runtime { .. })));
     }
 
     #[test]
@@ -696,7 +767,7 @@ mod tests {
         ]);
         
         let mut interpreter = Interpreter::new(program);
-        interpreter.run();
+        interpreter.run()?;
         
         assert_eq!(interpreter.get_symbol("X")?, SymbolValue::Number(1.0));
         assert_eq!(interpreter.get_symbol("Y")?, SymbolValue::Number(2.0));
@@ -721,7 +792,7 @@ mod tests {
             ])]),
         ]);
         let mut interpreter = Interpreter::new(program);
-        interpreter.run();
+        interpreter.run()?;
 
         // Test 2D numeric array
         if let SymbolValue::Array2DNumber(arr) = interpreter.get_symbol("A")? {
