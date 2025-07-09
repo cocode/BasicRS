@@ -37,6 +37,10 @@ fn main() {
                     println!("Program has {} lines.", program.lines.len());
                     use basic_rs::basic_interpreter::Interpreter;
                     let mut interpreter = Interpreter::new(program);
+                    if let Err(e) = interpreter.enable_trace() {
+                        eprintln!("Failed to enable trace: {}", e);
+                        process::exit(97);
+                    }
                     match interpreter.run() {
                         Ok(()) => {
                             let status = interpreter.get_run_status();
