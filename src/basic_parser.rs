@@ -209,8 +209,22 @@ impl Parser {
                     }
                 }
 
-                // Now parse the variable
-                let var = self.parse_identifier()?;
+                // Parse multiple variables separated by commas
+                let mut vars = Vec::new();
+                loop {
+                    let var = self.parse_identifier()?;
+                    vars.push(var);
+                    
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+
+                // For now, we'll use the first variable as the main variable
+                // TODO: Update Statement::Input to support multiple variables
+                let var = vars[0].clone();
 
                 Ok(Statement::Input { var, prompt })
             }
