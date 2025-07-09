@@ -191,7 +191,7 @@ lazy_static! {
             lambda: |args| {
                 let s = args[0].trim_matches('"');
                 let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", s.chars().take(n).collect::<String>()))
+                Ok(s.chars().take(n).collect::<String>())
             },
             arg_types: vec![ArgType::String, ArgType::Number],
         });
@@ -201,7 +201,7 @@ lazy_static! {
             lambda: |args| {
                 let s = args[0].trim_matches('"');
                 let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", s.chars().rev().take(n).collect::<String>().chars().rev().collect::<String>()))
+                Ok(s.chars().rev().take(n).collect::<String>().chars().rev().collect::<String>())
             },
             arg_types: vec![ArgType::String, ArgType::Number],
         });
@@ -212,7 +212,7 @@ lazy_static! {
                 let s = args[0].trim_matches('"');
                 let start: usize = args[1].parse::<usize>().unwrap().saturating_sub(1); // Already validated by validate_and_convert_args
                 let len: usize = args[2].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", s.chars().skip(start).take(len).collect::<String>()))
+                Ok(s.chars().skip(start).take(len).collect::<String>())
             },
             arg_types: vec![ArgType::String, ArgType::Number, ArgType::Number],
         });
@@ -221,7 +221,7 @@ lazy_static! {
             name: "CHR$".to_string(),
             lambda: |args| {
                 let value: u8 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", char::from(value)))
+                Ok(char::from(value).to_string())
             },
             arg_types: vec![ArgType::Number],
         });
@@ -265,7 +265,7 @@ lazy_static! {
             name: "SPACE$".to_string(),
             lambda: |args| {
                 let n: usize = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", " ".repeat(n)))
+                Ok(" ".repeat(n))
             },
             arg_types: vec![ArgType::Number],
         });
@@ -274,7 +274,7 @@ lazy_static! {
             name: "STR$".to_string(),
             lambda: |args| {
                 let n: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", n))
+                Ok(n.to_string())
             },
             arg_types: vec![ArgType::Number],
         });
@@ -313,7 +313,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
             name: "CHR$".to_string(),
             lambda: |args| {
                 let value: u8 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", char::from(value)))
+                Ok(char::from(value).to_string())
             },
             arg_types: vec![ArgType::Number],
         }),
@@ -322,7 +322,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
             lambda: |args| {
                 let s = args[0].trim_matches('"');
                 let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", s.chars().take(n).collect::<String>()))
+                Ok(s.chars().take(n).collect::<String>())
             },
             arg_types: vec![ArgType::String, ArgType::Number],
         }),
@@ -340,10 +340,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
                 let s = args[0].trim_matches('"');
                 let start: usize = args[1].parse::<usize>().unwrap().saturating_sub(1); // Already validated by validate_and_convert_args
                 let len: usize = args[2].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!(
-                    "\"{}\"",
-                    s.chars().skip(start).take(len).collect::<String>()
-                ))
+                Ok(s.chars().skip(start).take(len).collect::<String>())
             },
             arg_types: vec![ArgType::String, ArgType::Number, ArgType::Number],
         }),
@@ -352,16 +349,13 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
             lambda: |args| {
                 let s = args[0].trim_matches('"');
                 let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!(
-                    "\"{}\"",
-                    s.chars()
+                Ok(s.chars()
                         .rev()
                         .take(n)
                         .collect::<String>()
                         .chars()
                         .rev()
-                        .collect::<String>()
-                ))
+                        .collect::<String>())
             },
             arg_types: vec![ArgType::String, ArgType::Number],
         }),
@@ -400,7 +394,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
             name: "SPACE$".to_string(),
             lambda: |args| {
                 let n: usize = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", " ".repeat(n)))
+                Ok(" ".repeat(n))
             },
             arg_types: vec![ArgType::Number],
         }),
@@ -408,7 +402,7 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
             name: "STR$".to_string(),
             lambda: |args| {
                 let n: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(format!("\"{}\"", n))
+                Ok(n.to_string())
             },
             arg_types: vec![ArgType::Number],
         }),
@@ -494,8 +488,8 @@ mod tests {
         let chr_fn = get_function("CHR$").unwrap();
         match chr_fn {
             BasicFunction::String { lambda, .. } => {
-                assert_eq!(lambda(&vec!["65".to_string()]).unwrap(), "\"A\"");
-                assert_eq!(lambda(&vec!["97".to_string()]).unwrap(), "\"a\"");
+                assert_eq!(lambda(&vec!["65".to_string()]).unwrap(), "A");
+                assert_eq!(lambda(&vec!["97".to_string()]).unwrap(), "a");
             }
             _ => panic!("Expected string function"),
         }
@@ -508,7 +502,7 @@ mod tests {
             BasicFunction::String { lambda, .. } => {
                 assert_eq!(
                     lambda(&vec!["\"Hello\"".to_string(), "2".to_string()]).unwrap(),
-                    "\"He\""
+                    "He"
                 );
             }
             _ => panic!("Expected string function"),
@@ -537,7 +531,7 @@ mod tests {
                         "2".to_string(),
                         "2".to_string()
                     ]).unwrap(),
-                    "\"el\""
+                    "el"
                 );
             }
             _ => panic!("Expected string function"),
@@ -551,7 +545,7 @@ mod tests {
             BasicFunction::String { lambda, .. } => {
                 assert_eq!(
                     lambda(&vec!["\"Hello\"".to_string(), "2".to_string()]).unwrap(),
-                    "\"lo\""
+                    "lo"
                 );
             }
             _ => panic!("Expected string function"),
