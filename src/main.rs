@@ -27,27 +27,52 @@ fn main() {
                     let mut interpreter = Interpreter::new(program);
                     match interpreter.run() {
                         Ok(()) => {
-                            println!("Program completed successfully");
-                            process::exit(0);
+                            let status = interpreter.get_run_status();
+                            match status {
+                                RunStatus::EndNormal => {
+                                    println!("Program completed successfully");
+                                    process::exit(0);
+                                }
+                                RunStatus::EndStop => {
+                                    println!("Program stopped");
+                                    process::exit(1);
+                                }
+                                RunStatus::EndOfProgram => {
+                                    println!("Program reached end");
+                                    process::exit(0);
+                                }
+                                RunStatus::BreakCode => {
+                                    println!("Breakpoint hit");
+                                    process::exit(2);
+                                }
+                                RunStatus::BreakData => {
+                                    println!("Data breakpoint hit");
+                                    process::exit(3);
+                                }
+                                _ => {
+                                    println!("Program ended with status: {:?}", status);
+                                    process::exit(4);
+                                }
+                            }
                         }
                         Err(e) => {
                             use basic_rs::basic_types::BasicError;
                             match &e {
-                                BasicError::Syntax { message, .. } => {
+                                BasicError::Syntax { message, basic_line_number, file_line_number } => {
                                     eprintln!("Syntax error: {}", message);
-                                    process::exit(2);
+                                    process::exit(5);
                                 }
-                                BasicError::Runtime { message, .. } => {
+                                BasicError::Runtime { message, basic_line_number, file_line_number } => {
                                     eprintln!("Runtime error: {}", message);
-                                    process::exit(3);
+                                    process::exit(6);
                                 }
                                 BasicError::Internal { message, basic_line_number, file_line_number } => {
                                     eprintln!("Internal error: {}", message);
-                                    process::exit(4);
+                                    process::exit(7);
                                 }
-                                BasicError::Type { message, .. } => {
+                                BasicError::Type { message, basic_line_number, file_line_number } => {
                                     eprintln!("Type error: {}", message);
-                                    process::exit(5);
+                                    process::exit(8);
                                 }
                             }
                         }
