@@ -28,7 +28,7 @@ impl Parser {
         while !self.is_at_end() {
             let line_number = self.parse_line_number()?;
             self.current_line = line_number;
-            println!("line {}", line_number);
+            // println!("line {}", line_number);
             let source = self.get_line_source();
             let statements = self.parse_statements()?;
             for stmt in &statements {
@@ -146,7 +146,7 @@ impl Parser {
         match self.peek() {
             Some(Token::Let) => {
                 self.advance();
-                let var = self.parse_primary()?; // Parse as expression to handle arrays
+                let var = self.parse_lvalue()?; // Parse as lvalue to handle arrays
                 self.consume(&Token::Equal, "Expected '=' after variable name")?;
                 let value = self.parse_expression()?;
                 Ok(Statement::Let { var, value })
@@ -619,6 +619,8 @@ impl Parser {
                     self.consume(&Token::RightParen, "Expected ')' after arguments")?;
 
                     // Determine if this is a function call or array access
+                    // For left-hand sides of assignments, always treat as arrays
+                    // For expressions, use case-based logic
                     if name.chars().next().map_or(false, |c| c.is_uppercase()) {
                         Ok(Expression::new_function_call(name.clone(), args))
                     } else {
@@ -768,6 +770,54 @@ impl Parser {
         }
         
         Ok(statements)
+    }
+
+    fn parse_lvalue(&mut self) -> Result<Expression, BasicError> {
+        let token = self.peek().cloned();
+        match token {
+            Some(Token::Number(n)) => {
+                self.advance();
+                Ok(Expression::new_number(n.parse().unwrap()))
+            }
+            Some(Token::String(s)) => {
+                self.advance();
+                Ok(Expression::new_string(s.clone()))
+            }
+            Some(Token::Identifier(name)) => {
+                self.advance();
+                if self.check(&Token::LeftParen) {
+                    // Always treat as array access for left-hand sides
+                    self.advance();
+                    let mut args = Vec::new();
+
+                    if !self.check(&Token::RightParen) {
+                        loop {
+                            args.push(self.parse_expression()?);
+                            if !self.check(&Token::Comma) {
+                                break;
+                            }
+                            self.advance();
+                        }
+                    }
+
+                    self.consume(&Token::RightParen, "Expected ')' after arguments")?;
+                    Ok(Expression::new_array(name.clone(), args))
+                } else {
+                    Ok(Expression::new_variable(name.clone()))
+                }
+            }
+            Some(Token::LeftParen) => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                self.consume(&Token::RightParen, "Expected ')' after expression")?;
+                Ok(expr)
+            }
+            _ => Err(BasicError::Syntax {
+                message: "Expected expression".to_string(),
+                basic_line_number: Some(self.current_line),
+                file_line_number: None,
+            }),
+        }
     }
 }
 
