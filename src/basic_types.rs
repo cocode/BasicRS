@@ -734,6 +734,19 @@ pub fn is_valid_identifier(name: &str) -> bool {
         if chars.len() > 3 {
             return false;
         }
+        
+        // Check for valid patterns: A, A1, A$, A1$
+        if chars.len() == 2 {
+            // Two characters: must be A1 or A$
+            if !chars[1].is_ascii_digit() && chars[1] != '$' {
+                return false;
+            }
+        } else if chars.len() == 3 {
+            // Three characters: must be A1$ (letter + digit + $)
+            if !chars[1].is_ascii_digit() || chars[2] != '$' {
+                return false;
+            }
+        }
     }
     
     true
