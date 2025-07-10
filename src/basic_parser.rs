@@ -138,15 +138,23 @@ impl Parser {
             }),
         }
     }
+
+    fn parse_implicit_or_explicit_let(&mut self, skip_token: bool) -> Result<Statement, BasicError> {
+        if skip_token {
+            self.advance(); // skip `LET`
+        }
+
+        let var = self.parse_lvalue()?;
+        self.consume(&Token::Equal, "Expected '=' after variable name")?;
+        let value = self.parse_expression()?;
+
+        Ok(Statement::Let { var, value })
+    }
+
     fn parse_statement(&mut self) -> Result<Statement, BasicError> {
         match self.peek() {
-            Some(Token::Let) => {
-                self.advance();
-                let var = self.parse_lvalue()?; // Parse as lvalue to handle arrays
-                self.consume(&Token::Equal, "Expected '=' after variable name")?;
-                let value = self.parse_expression()?;
-                Ok(Statement::Let { var, value })
-            }
+            Some(Token::Let) => self.parse_implicit_or_explicit_let(true),
+            Some(Token::Identifier(_)) => self.parse_implicit_or_explicit_let(false),
             Some(Token::Print) => {
                 self.advance();
                 let mut expressions = Vec::new();
@@ -441,14 +449,6 @@ impl Parser {
                 let expr = self.parse_expression()?;
                 
                 Ok(Statement::Def { name, params, expr })
-            }
-            // Default: Assume LET if line starts with an identifier
-            Some(Token::Identifier(_)) => {
-                // Parse as expression to handle both variables and arrays
-                let var = self.parse_primary()?;
-                self.consume(&Token::Equal, "Expected '=' after variable name")?;
-                let value = self.parse_expression()?;
-                Ok(Statement::Let { var, value })
             }
             Some(token) => Err(BasicError::Syntax {
                 message: format!("Unexpected token: {:?}", token),
