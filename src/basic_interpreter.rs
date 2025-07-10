@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::fs::File;
 use std::io::{self, Write};
 use crate::basic_symbols::SymbolTable;
@@ -17,6 +18,12 @@ const TRACE_FILE_NAME: &str = "basic_trace.txt";
 pub struct ControlLocation {
     pub index: usize,    // Index into program lines
     pub offset: usize,   // Offset into statements in the line
+}
+
+impl fmt::Display for ControlLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ControlLocation(index={}, offset={})", self.index, self.offset)
+    }
 }
 
 // For loop record
@@ -45,6 +52,11 @@ pub struct Interpreter {
     line_number_map: HashMap<usize, usize>, // Maps line numbers to program indices
     file_line_number: usize,    // Current file line number for error reporting. We don't
                                 // track this currently. I think we'd need to add it to ProgramLine
+    // Normally, after a statement is executed, we advance to the next line, in the main loop
+    // But if we just did a control transfer, like a GOTO, we don't then want to advance to
+    // the next statement in the main loop, we are already where we want to be. So set this
+    // on control transfers. (GOTO, GOSUB, FOR/NEXT, IF. Anything else?)
+    advance_stmt: bool,
 }
 
 impl Interpreter {
@@ -75,7 +87,109 @@ impl Interpreter {
             data_breakpoints: HashSet::new(),
             line_number_map,
             file_line_number: 1,
+            advance_stmt: true,
         }
+    }
+
+    // All location changes should be either through control_transfer or advance_location
+    fn control_transfer(&mut self, new_loc: ControlLocation) {
+        self.location = new_loc;
+        self.advance_stmt = false
+    }
+    fn advance_location(&mut self) {
+        if  !self.advance_stmt {
+            self.advance_stmt = true;
+            return
+        }
+        let current_line = self.get_current_line();
+        if self.location.offset + 1 < current_line.statements.len() {
+            // Move to next statement in current line
+            self.location.offset += 1;
+        } else {
+            // Move to first statement of next line
+            if self.location.index + 1 < self.program.lines.len() {
+                self.location.index += 1;
+                self.location.offset =  0;
+            } else {
+                self.run_status = RunStatus::EndOfProgram;
+            }
+        }
+    }
+    fn goto_next_line(&mut self) {
+        if self.location.index + 1 < self.program.lines.len() {
+            self.control_transfer(ControlLocation {
+            index: self.location.index + 1,
+            offset:  0,
+            });
+        } else {
+            self.run_status = RunStatus::EndOfProgram;
+        }
+    }
+
+    /// Finds the matching `NEXT` statement for a `FOR` loop variable.
+    ///
+    /// This function performs a lexical search starting from the current location,
+    /// scanning forward through the program to find the corresponding `NEXT` for the
+    /// given variable name. Nested `FOR` loops are correctly handled via depth tracking.
+    ///
+    /// this returns with the location of the next statement. The normal call to advance_location()
+    /// in the main loop will move us to the statement after the next. Except we did a control
+    /// transfer to get to the next, so the dont_adveance flag will be set.  so set it manually
+    /// after callling this function
+    ///
+    /// # Arguments
+    ///
+    /// * `var` - The name of the loop variable to match with a `NEXT`.
+    ///
+    /// # Returns
+    ///
+    /// A `ControlLocation` pointing to the statement immediately after the matching `NEXT`,
+    /// or an error if no match is found.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BasicError::Runtime` if the `NEXT` is missing or mismatched.
+    fn find_matching_next(&self, var: &str) -> Result<ControlLocation, BasicError> {
+
+        let mut depth = 0;
+
+        for (i, line) in self.program.lines.iter().enumerate().skip(self.location.index) {
+            let start_offset = if i == self.location.index {
+                self.location.offset + 1
+            } else {
+                0
+            };
+
+            for (j, stmt) in line.statements.iter().enumerate().skip(start_offset) {
+                match stmt {
+                    Statement::For { .. } => {
+                        depth += 1;
+                    }
+                    Statement::Next { var: next_var } => {
+                        if depth == 0 {
+                            if next_var == var {
+                                return Ok(ControlLocation { index: i, offset: j });
+                            } else {
+                                return Err(BasicError::Runtime {
+                                    message: format!("Unexpected NEXT for '{}' while looking for NEXT for '{}'", next_var, var),
+                                    basic_line_number: Some(self.program.lines[i].line_number),
+                                    file_line_number: Some(self.file_line_number),
+                                });
+                            }
+                        } else {
+                            depth -= 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Err(BasicError::Runtime {
+            message: format!("No matching NEXT found for FOR {}", var),
+            basic_line_number: Some(self.get_current_line().line_number),
+            file_line_number: Some(self.file_line_number),
+        })
     }
 
     pub fn enable_trace(&mut self) -> io::Result<()> {
@@ -144,19 +258,25 @@ impl Interpreter {
 
             // Write trace
             self.do_trace(&current_stmt);
+
             // Update coverage before executing
             if let Some(ref mut cov) = self.coverage {
                 cov.entry(current_line)
                     .and_modify(|count| *count += 1)
                     .or_insert(1);
             }
-            
+            if false {
+                println!("Symbol Table at line {} at {}", current_line, current_offset);
+                let symbols = self.get_symbol_table();
+                for (name, value) in symbols.dump() {
+                    println!("{} = {}", name, value);
+                }
+                println!("Symbol Table END");
+            }
             // Execute statement
             match self.execute_statement(&current_stmt) {
                 Ok(()) => {
-                    if current_stmt.should_advance_location() {
-                        self.advance_location();
-                    }
+                    self.advance_location();
                 }
                 Err(err) => {
                     self.run_status = match err {
@@ -173,10 +293,11 @@ impl Interpreter {
     }
 
     fn do_trace(&mut self, current_stmt: &Statement) {
-        let current_line_number = self.get_current_line().source.clone();
+        let current_line_number = self.get_current_line_number();
+        let current_line_offset = self.location.offset;
         if let Some(ref mut file) = self.trace_file {
             if self.location.offset == 0 {
-                writeln!(file, ">{}", current_line_number).ok();
+                writeln!(file, ">{}:{}", current_line_number, current_line_offset).ok();
             }
             writeln!(file, "\t{:?}", &current_stmt).ok();
         }
@@ -289,10 +410,9 @@ impl Interpreter {
             }
             Statement::For { var, start, stop, step } => {
                 let start_value = self.evaluate_expression(start)?;
-                let stop_expr = stop.clone();
+                let stop_expr = stop.clone(); // TODO CAN THIS BE AN EXPRESSION?
                 let step_expr = step.clone().unwrap_or_else(|| Expression::new_number(1.0));
-                
-                // Get numeric values
+                //println!("for loop starting at {}", start_value);
                 let current = match start_value {
                     SymbolValue::Number(n) => n,
                     _ => return Err(BasicError::Runtime {
@@ -301,7 +421,7 @@ impl Interpreter {
                         file_line_number: Some(self.file_line_number),
                     }),
                 };
-                
+
                 let stop_value = self.evaluate_expression(&stop_expr)?;
                 let stop = match stop_value {
                     SymbolValue::Number(n) => n,
@@ -311,7 +431,7 @@ impl Interpreter {
                         file_line_number: Some(self.file_line_number),
                     }),
                 };
-                
+
                 let step_value = self.evaluate_expression(&step_expr)?;
                 let step = match step_value {
                     SymbolValue::Number(n) => n,
@@ -321,27 +441,40 @@ impl Interpreter {
                         file_line_number: Some(self.file_line_number),
                     }),
                 };
-                
-                self.for_stack.push(ForRecord {
-                    var: var.clone(),
-                    stop: stop_expr,
-                    step: step_expr,
-                    stmt: Some(self.location),
-                });
-                
+
                 self.put_symbol(var.clone(), SymbolValue::Number(current));
-                
+
+                // Check if loop should run
                 if (step >= 0.0 && current > stop) || (step < 0.0 && current < stop) {
-                    if let Some(stmt_loc) = self.for_stack.last().unwrap().stmt {
-                        self.location = stmt_loc;
-                    }
-                    self.for_stack.pop();
+                    // Loop won't run: jump past the matching NEXT
+                    let next_loc = self.find_matching_next(var)?;
+                    // We have the location of the next, we want to advance past it.
+                    // Normally control_transfer takes you TO a location.
+                    // We want the location after that.
+                    self.control_transfer(next_loc);
+                    self.advance_stmt = true;
+                } else {
+                    // Loop will run: push loop frame
+                    self.for_stack.push(ForRecord {
+                        var: var.clone(),
+                        stop: stop_expr,
+                        step: step_expr,
+                        stmt: Some(self.location),
+                    });
                 }
+
                 Ok(())
             }
             Statement::Next { var } => {
                 if let Some(for_record) = self.for_stack.last().cloned() {
-                    // Get current value
+                    if &for_record.var != var {
+                        return Err(BasicError::Runtime {
+                            message: format!("Mismatched NEXT: expected '{}', found '{}'", for_record.var, var),
+                            basic_line_number: Some(self.get_current_line().line_number),
+                            file_line_number: Some(self.file_line_number),
+                        });
+                    }
+
                     let current_value = self.get_symbol(var)?;
                     let current = match current_value {
                         SymbolValue::Number(n) => n,
@@ -352,9 +485,7 @@ impl Interpreter {
                         }),
                     };
 
-                    // Get step value
-                    let step_value = self.evaluate_expression(&for_record.step)?;
-                    let step = match step_value {
+                    let step = match self.evaluate_expression(&for_record.step)? {
                         SymbolValue::Number(n) => n,
                         _ => return Err(BasicError::Runtime {
                             message: "FOR loop step must be numeric".to_string(),
@@ -363,9 +494,7 @@ impl Interpreter {
                         }),
                     };
 
-                    // Get stop value
-                    let stop_value = self.evaluate_expression(&for_record.stop)?;
-                    let stop = match stop_value {
+                    let stop = match self.evaluate_expression(&for_record.stop)? {
                         SymbolValue::Number(n) => n,
                         _ => return Err(BasicError::Runtime {
                             message: "FOR loop stop value must be numeric".to_string(),
@@ -373,19 +502,22 @@ impl Interpreter {
                             file_line_number: Some(self.file_line_number),
                         }),
                     };
-                    
                     let next_value = current + step;
-                    
+                    println!("NEXT FOR {} = {} to {} step {}", var, next_value, stop, stop);
+                    self.put_symbol(var.clone(), SymbolValue::Number(next_value));
+                    let val1 = self.get_symbol(var)?;
+                    println!("Value for {} is now {:?}", var, val1);
                     if (step >= 0.0 && next_value <= stop) || (step < 0.0 && next_value >= stop) {
-                        self.put_symbol(var.clone(), SymbolValue::Number(next_value));
                         if let Some(stmt_loc) = for_record.stmt {
-                            self.location = stmt_loc;
-                            self.for_stack.pop();
-                            self.for_stack.push(for_record);
+                            self.control_transfer(stmt_loc);
+                            self.advance_stmt = true;
+                            self.for_stack.pop();         // Remove old frame
+                            self.for_stack.push(for_record); // Re-push updated one
                         }
                     } else {
                         self.for_stack.pop();
                     }
+
                     Ok(())
                 } else {
                     Err(BasicError::Runtime {
@@ -406,7 +538,8 @@ impl Interpreter {
             }
             Statement::Return => {
                 if let Some(return_loc) = self.gosub_stack.pop() {
-                    self.location = return_loc;
+                    self.control_transfer(return_loc);
+                    self.advance_stmt = true;
                     Ok(())
                 } else {
                     Err(BasicError::Runtime {
@@ -786,10 +919,10 @@ impl Interpreter {
 
     fn goto_line(&mut self, line_number: usize) -> Result<(), BasicError> {
         if let Some(&index) = self.line_number_map.get(&line_number) {
-            self.location = ControlLocation {
+            self.control_transfer(ControlLocation {
                 index,
                 offset: 0,
-            };
+            });
             Ok(())
         } else {
             Err(BasicError::Runtime {
@@ -808,21 +941,6 @@ impl Interpreter {
         &self.get_current_line().statements[self.location.offset]
     }
 
-    fn advance_location(&mut self) {
-        let current_line = self.get_current_line();
-        if self.location.offset + 1 < current_line.statements.len() {
-            // Move to next statement in current line
-            self.location.offset += 1;
-        } else {
-            // Move to first statement of next line
-            if self.location.index + 1 < self.program.lines.len() {
-                self.location.index += 1;
-                self.location.offset = 0;
-            } else {
-                self.run_status = RunStatus::EndOfProgram;
-            }
-        }
-    }
 
     fn assign_lvalue(&mut self, expr: &Expression, value: SymbolValue) -> Result<(), BasicError> {
         match &expr.expr_type {
@@ -862,7 +980,10 @@ impl Interpreter {
             match &current_line.statements[offset] {
                 Statement::Else => {
                     // Found ELSE, advance to it
-                    self.location.offset = offset;
+                    self.control_transfer(ControlLocation{
+                        index: self.location.index,
+                        offset: offset,
+                    });
                     return Ok(());
                 }
                 _ => {
@@ -876,17 +997,6 @@ impl Interpreter {
         self.goto_next_line();
         Ok(())
     }
-
-    fn goto_next_line(&mut self) {
-        if self.location.index + 1 < self.program.lines.len() {
-            self.location.index += 1;
-            self.location.offset = 0;
-        } else {
-            self.run_status = RunStatus::EndOfProgram;
-        }
-    }
-
-
 }
 
 #[cfg(test)]
