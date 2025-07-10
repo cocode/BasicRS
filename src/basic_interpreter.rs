@@ -43,7 +43,8 @@ pub struct Interpreter {
     breakpoints: HashSet<(usize, usize)>,
     data_breakpoints: HashSet<String>,
     line_number_map: HashMap<usize, usize>, // Maps line numbers to program indices
-    file_line_number: usize, // Current file line number for error reporting
+    file_line_number: usize,    // Current file line number for error reporting. We don't
+                                // track this currently. I think we'd need to add it to ProgramLine
 }
 
 impl Interpreter {
@@ -663,7 +664,7 @@ impl Interpreter {
                         } else {
                             Err(BasicError::Runtime {
                                 message: format!("Unknown function '{}'", name),
-                                basic_line_number: None,
+                                basic_line_number: Some(self.get_current_line().line_number),
                                 file_line_number: Some(self.file_line_number),
                             })
                         }
