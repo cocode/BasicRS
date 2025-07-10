@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use tracing_subscriber::fmt::writer::EitherWriter::A;
+use crate::basic_dialect::ARRAY_OFFSET;
 use crate::basic_types::{BasicError, Expression, SymbolValue};
 
 #[derive(Clone)]
@@ -7,7 +9,12 @@ pub struct SymbolTable {
     parent: Option<Box<SymbolTable>>,
 }
 
+pub fn adjust(coord: usize) -> usize {
+    return coord - ARRAY_OFFSET;
+}
+
 impl SymbolTable {
+
     pub fn get_array_element(&self, name: &str, indices: &[usize]) -> Result<SymbolValue, BasicError> {
         let symbol = self.get_symbol(name).ok_or(BasicError::Runtime {
             message: format!("Array '{}' not found", name),
@@ -24,7 +31,7 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
-                let index = indices[0];
+                let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
@@ -43,8 +50,9 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
-                let row = indices[0];
-                let col = indices[1];
+                let row = adjust(indices[0]);
+                let col = adjust(indices[1]);
+
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
@@ -63,7 +71,7 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
-                let index = indices[0];
+                let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
@@ -82,8 +90,8 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
-                let row = indices[0];
-                let col = indices[1];
+                let row = adjust(indices[0]);
+                let col = adjust(indices[1]);
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
@@ -118,8 +126,8 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
-                let index = indices[0];
-                if index >= vec.len() {
+                let index = adjust(indices[0]);
+                if index  >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
                         basic_line_number: None,
@@ -146,8 +154,8 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
-                let row = indices[0];
-                let col = indices[1];
+                let row = adjust(indices[0]);
+                let col = adjust(indices[1]);
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
@@ -175,7 +183,7 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
-                let index = indices[0];
+                let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
@@ -203,8 +211,8 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
-                let row = indices[0];
-                let col = indices[1];
+                let row = adjust(indices[0]);
+                let col = adjust(indices[1]);
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
                         message: "Array index out of bounds".to_string(),
