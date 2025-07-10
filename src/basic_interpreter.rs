@@ -503,10 +503,8 @@ impl Interpreter {
                         }),
                     };
                     let next_value = current + step;
-                    println!("NEXT FOR {} = {} to {} step {}", var, next_value, stop, stop);
                     self.put_symbol(var.clone(), SymbolValue::Number(next_value));
                     let val1 = self.get_symbol(var)?;
-                    println!("Value for {} is now {:?}", var, val1);
                     if (step >= 0.0 && next_value <= stop) || (step < 0.0 && next_value >= stop) {
                         if let Some(stmt_loc) = for_record.stmt {
                             self.control_transfer(stmt_loc);
