@@ -202,7 +202,20 @@ impl Interpreter {
                             })
                             .collect();
                         let indices = idx_values?;
-                        self.symbols.set_array_element(name, &indices, result)?;
+                        self.symbols
+                            .set_array_element(name, &indices, result)
+                            .map_err(|mut err| {
+                                if let BasicError::Runtime {
+                                    ref mut basic_line_number,
+                                    ref mut file_line_number,
+                                    ..
+                                } = err
+                                {
+                                    *basic_line_number = Some(self.get_current_line().line_number);
+                                    *file_line_number = Some(self.file_line_number);
+                                }
+                                err
+                            })?;
                         Ok(())
                     }
                     _ => {
