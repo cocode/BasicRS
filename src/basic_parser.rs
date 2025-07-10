@@ -500,7 +500,7 @@ impl Parser {
                 Token::NotEqual => "<>",
                 _ => unreachable!(),
             };
-            let right = self.parse_comparison()?;
+            let right = self.parse_comparison()?; // TODO why start with comparison? Not or?
             expr = Expression::new_binary_op(op.to_string(), expr, right);
         }
         
@@ -608,12 +608,12 @@ impl Parser {
                     // Determine if this is a function call or array access
                     // For left-hand sides of assignments, always treat as arrays
                     // For expressions, use case-based logic
-                    if name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                    // ✅ NEW: disambiguate by "FN" prefix
+                    if name.to_ascii_uppercase().starts_with("FN") {
                         Ok(Expression::new_function_call(name.clone(), args))
                     } else {
                         Ok(Expression::new_array(name.clone(), args))
-                    }
-                } else {
+                    }                } else {
                     Ok(Expression::new_variable(name.clone()))
                 }
             }
