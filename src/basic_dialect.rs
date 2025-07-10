@@ -20,7 +20,7 @@ pub const EXPONENTIATION_OPERATOR: &str = "^";
 /// Base index for array subscripts
 /// 0 = Zero-based arrays (like C, Rust): A(0) is first element
 /// 1 = One-based arrays (traditional BASIC): A(1) is first element
-pub const ARRAY_OFFSET: i32 = 1;
+pub const ARRAY_OFFSET: usize = 1;
 
 // =============================================================================
 // INPUT/OUTPUT CONFIGURATION
