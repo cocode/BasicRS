@@ -292,18 +292,6 @@ pub enum Statement {
 }
 
 impl Statement {
-        pub fn should_advance_location(&self) -> bool {
-        match self {
-            Statement::Goto { .. } => false,
-            Statement::Gosub { .. } => false,
-            Statement::Return => true,
-            Statement::Next {..} => true,
-            Statement::End => false,
-            Statement::Stop => false,
-            Statement::Else => false,
-            _ => true,
-        }
-    }
 
     pub fn new_let(var: Expression, value: Expression) -> Self {
         Statement::Let { var, value }
@@ -765,18 +753,6 @@ pub struct Symbol {
     pub arg: Option<String>,
 }
 
-// Control flow location
-#[derive(Debug, Clone, PartialEq)]
-pub struct ControlLocation {
-    pub index: usize,
-    pub offset: usize,
-}
-
-impl fmt::Display for ControlLocation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ControlLocation(index={}, offset={})", self.index, self.offset)
-    }
-}
 
 // Operation token for expression evaluation
 #[derive(Debug, Clone, PartialEq)]
