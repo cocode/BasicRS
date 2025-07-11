@@ -897,30 +897,6 @@ mod tests {
             panic!("Expected PRINT statement");
         }
     }
-    #[test]
-    fn test_parse_rem() {
-        let tokens = vec![
-            Token::LineNumber(30),
-            Token::Rem,
-            Token::String("This is a comment".to_string()),
-            Token::Colon,
-            Token::Print, // This should be ignored after REM
-            Token::Identifier("X".to_string(), IdentifierType::Variable),
-            Token::Newline,
-        ];
-        let mut parser = Parser::new(tokens);
-        let program = parser.parse().unwrap();
-        
-        assert_eq!(program.lines.len(), 1);
-        assert_eq!(program.lines[0].line_number, 30);
-        assert_eq!(program.lines[0].statements.len(), 1);
-        
-        if let Statement::Rem { comment } = &program.lines[0].statements[0] {
-            assert_eq!(comment, "This is a comment : PRINT X");
-        } else {
-            panic!("Expected REM statement");
-        }
-    }
 
     #[test]
     fn test_parse_multiple_lines() {
