@@ -9,6 +9,9 @@ pub enum Op {
     Str(StrOp),
 }
 
+pub const BASIC_TRUE: &str = "1";
+pub const BASIC_FALSE: &str = "0";
+
 impl Op {
     pub fn eval(&self, stack: &mut Vec<Token>, _op: Option<&OpOperation>) -> Result<Token, BasicError> {
         match self {
@@ -319,7 +322,7 @@ lazy_static::lazy_static! {
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0);
                 let b = args[1].parse::<f64>().unwrap_or(0.0);
-                if a == b { "-1" } else { "0" }.to_string()
+                if a == b { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, "=", 2, Some("number"))),
         });
 
@@ -329,7 +332,7 @@ lazy_static::lazy_static! {
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0);
                 let b = args[1].parse::<f64>().unwrap_or(0.0);
-                if a != b { "-1" } else { "0" }.to_string()
+                if a != b { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, "<>", 2, Some("number"))),
         });
 
@@ -339,7 +342,7 @@ lazy_static::lazy_static! {
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0);
                 let b = args[1].parse::<f64>().unwrap_or(0.0);
-                if a < b { "-1" } else { "0" }.to_string()
+                if a < b { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, "<", 2, Some("number"))),
         });
 
@@ -349,7 +352,7 @@ lazy_static::lazy_static! {
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0);
                 let b = args[1].parse::<f64>().unwrap_or(0.0);
-                if a > b { "-1" } else { "0" }.to_string()
+                if a > b { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, ">", 2, Some("number"))),
         });
 
@@ -359,7 +362,7 @@ lazy_static::lazy_static! {
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0);
                 let b = args[1].parse::<f64>().unwrap_or(0.0);
-                if a <= b { "-1" } else { "0" }.to_string()
+                if a <= b { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, "<=", 2, Some("number"))),
         });
 
@@ -369,7 +372,7 @@ lazy_static::lazy_static! {
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0);
                 let b = args[1].parse::<f64>().unwrap_or(0.0);
-                if a >= b { "-1" } else { "0" }.to_string()
+                if a >= b { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, ">=", 2, Some("number"))),
         });
 
@@ -380,7 +383,7 @@ lazy_static::lazy_static! {
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0) != 0.0;
                 let b = args[1].parse::<f64>().unwrap_or(0.0) != 0.0;
-                if a && b { "-1" } else { "0" }.to_string()
+                if a && b { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, "AND", 2, Some("number"))),
         });
 
@@ -390,7 +393,7 @@ lazy_static::lazy_static! {
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0) != 0.0;
                 let b = args[1].parse::<f64>().unwrap_or(0.0) != 0.0;
-                if a || b { "-1" } else { "0" }.to_string()
+                if a || b { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, "OR", 2, Some("number"))),
         });
 
@@ -399,7 +402,7 @@ lazy_static::lazy_static! {
             precedence: 1,
             op: Op::Str(StrOp::new(|args| {
                 let a = args[0].parse::<f64>().unwrap_or(0.0) != 0.0;
-                if !a { "-1" } else { "0" }.to_string()
+                if !a { BASIC_TRUE } else { BASIC_FALSE }.to_string()
             }, "NOT", 1, Some("number"))),
         });
 
@@ -495,7 +498,7 @@ mod tests {
         // Test division by zero
         let mut stack = vec![
             create_number_token("10"),
-            create_number_token("0"),
+            create_number_token(BASIC_FALSE),
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
@@ -553,7 +556,7 @@ mod tests {
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
@@ -566,7 +569,7 @@ mod tests {
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
@@ -579,7 +582,7 @@ mod tests {
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
@@ -592,7 +595,7 @@ mod tests {
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
@@ -605,7 +608,7 @@ mod tests {
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
@@ -618,7 +621,7 @@ mod tests {
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
@@ -629,12 +632,12 @@ mod tests {
         // Test AND
         let op = get_op_def("AND").unwrap();
         let mut stack = vec![
-            create_number_token("-1"), // True in BASIC
-            create_number_token("-1"), // True in BASIC
+            create_number_token(BASIC_TRUE), // True in BASIC
+            create_number_token(BASIC_TRUE), // True in BASIC
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
@@ -642,12 +645,12 @@ mod tests {
         // Test OR
         let op = get_op_def("OR").unwrap();
         let mut stack = vec![
-            create_number_token("-1"), // True in BASIC
-            create_number_token("0"),  // False in BASIC
+            create_number_token(BASIC_TRUE), // True in BASIC
+            create_number_token(BASIC_FALSE),  // False in BASIC
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
@@ -655,11 +658,11 @@ mod tests {
         // Test NOT
         let op = get_op_def("NOT").unwrap();
         let mut stack = vec![
-            create_number_token("0"),  // False in BASIC
+            create_number_token(BASIC_FALSE),  // False in BASIC
         ];
         let result = op.op.eval(&mut stack, None).unwrap();
         if let Token::Number(n) = result {
-            assert_eq!(n, "-1"); // True in BASIC
+            assert_eq!(n, BASIC_TRUE); // True in BASIC
         } else {
             panic!("Expected number token");
         }
