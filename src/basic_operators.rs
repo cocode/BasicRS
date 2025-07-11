@@ -10,7 +10,9 @@ pub enum Op {
 }
 
 pub const BASIC_TRUE: &str = "1";
+pub const BASIC_TRUE_F: f64 = 1.0;
 pub const BASIC_FALSE: &str = "0";
+pub const BASIC_FALSE_F: f64 = 0.0;
 
 impl Op {
     pub fn eval(&self, stack: &mut Vec<Token>, _op: Option<&OpOperation>) -> Result<Token, BasicError> {

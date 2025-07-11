@@ -10,6 +10,7 @@ use crate::basic_types::{
 };
 
 use crate::basic_functions::PredefinedFunctions;
+use crate::basic_operators::{BASIC_FALSE_F, BASIC_TRUE_F};
 
 const TRACE_FILE_NAME: &str = "basic_trace.txt";
 
@@ -388,7 +389,7 @@ impl Interpreter {
                 let result = self.evaluate_expression(condition)?;
                 match result {
                     SymbolValue::Number(n) => {
-                        if n == 0.0 {
+                        if n == BASIC_FALSE_F {
                             // Condition is false, skip to ELSE or next line
                             self.goto_else_or_next_line()?;
                         }
@@ -406,6 +407,11 @@ impl Interpreter {
                 Ok(())
             }
             Statement::Else => {
+                // An ELSE statement acts as the end of the THEN before it.
+                // We want to advance to the next else (in the case of nested IF/THEN/ELSEs)
+                // Or go to the next line.
+                self.advance_location();        // Skip this ELSE
+                self.goto_else_or_next_line()?; // And look for the next one.
                 Ok(())
             }
             Statement::For { var, start, stop, step } => {
@@ -824,12 +830,12 @@ impl Interpreter {
                                 a / b
                             }
                             "^" => a.powf(b),
-                            "=" => if a == b { -1.0 } else { 0.0 },
-                            "<>" => if a != b { -1.0 } else { 0.0 },
-                            "<" => if a < b { -1.0 } else { 0.0 },
-                            "<=" => if a <= b { -1.0 } else { 0.0 },
-                            ">" => if a > b { -1.0 } else { 0.0 },
-                            ">=" => if a >= b { -1.0 } else { 0.0 },
+                            "=" => if a == b { BASIC_TRUE_F } else { BASIC_FALSE_F },
+                            "<>" => if a != b { BASIC_TRUE_F } else { BASIC_FALSE_F },
+                            "<" => if a < b { BASIC_TRUE_F } else { BASIC_FALSE_F },
+                            "<=" => if a <= b { BASIC_TRUE_F } else { BASIC_FALSE_F },
+                            ">" => if a > b { BASIC_TRUE_F } else { BASIC_FALSE_F },
+                            ">=" => if a >= b { BASIC_TRUE_F } else { BASIC_FALSE_F },
                             "AND" => (a as i64 & b as i64) as f64,
                             "OR" => (a as i64 | b as i64) as f64,
                             _ => return Err(BasicError::Runtime {
@@ -843,8 +849,8 @@ impl Interpreter {
                     (SymbolValue::String(a), SymbolValue::String(b)) => {
                         let result = match op.as_str() {
                             "+" => Ok(SymbolValue::String(format!("{}{}", a, b))),
-                            "<>" => Ok(SymbolValue::Number(if a != b { -1.0 } else { 0.0 })),
-                            "=" => Ok(SymbolValue::Number(if a == b { -1.0 } else { 0.0 })),
+                            "<>" => Ok(SymbolValue::Number(if a != b { BASIC_TRUE_F } else { BASIC_FALSE_F })),
+                            "=" => Ok(SymbolValue::Number(if a == b { BASIC_TRUE_F } else { BASIC_FALSE_F })),
                             _ => Err(BasicError::Runtime {
                                 message: format!("Invalid operator '{}' for strings", op),
                                 basic_line_number: Some(self.get_current_line().line_number),
@@ -868,7 +874,7 @@ impl Interpreter {
                     SymbolValue::Number(n) => {
                         let result = match op.as_str() {
                             "-" => -n,
-                            "NOT" => if n == 0.0 { -1.0 } else { 0.0 },
+                            "NOT" => if n == BASIC_FALSE_F { BASIC_TRUE_F } else { BASIC_FALSE_F },
                             _ => return Err(BasicError::Runtime {
                                 message: format!("Unknown unary operator: {}", op),
                                 basic_line_number: Some(self.get_current_line().line_number),
@@ -982,6 +988,9 @@ impl Interpreter {
                         index: self.location.index,
                         offset: offset,
                     });
+                    self.advance_stmt = true;   // The above points to the else. We don't want
+                                                // to execute the else, we want to start with
+                                                // the statement after the else.
                     return Ok(());
                 }
                 _ => {
@@ -991,7 +1000,7 @@ impl Interpreter {
             }
         }
         
-        // No ELSE found, go to next line
+        // No ELSE found, go to next line. In this case, we DON'T want to advance after.
         self.goto_next_line();
         Ok(())
     }
