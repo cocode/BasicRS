@@ -623,21 +623,6 @@ mod tests {
         }
     }
 
-    // Test is not valid. 1X tokenizes just fine, as 1, X. But it still isn't a valid identifier
-    // #[test]
-    // fn test_invalid_identifiers() {
-    //     let invalid_inputs = vec![
-    //         "1X", "ABC", "A1B", "A$B", "A$$"
-    //     ];
-    //
-    //     for input in invalid_inputs {
-    //         let source = format!("LET {} = 123", input);
-    //         let mut lexer = Lexer::new(&source);
-    //         let result = lexer.tokenize();
-    //         assert!(result.is_err(), "Should fail for input: {}", input);
-    //     }
-    // }
-
     #[test]
     fn test_basic_space_free_syntax() {
         // Test the case mentioned: 100FORI=ATOBSTEPC
@@ -711,6 +696,7 @@ mod tests {
         assert_eq!(tokens[4], Token::RightParen);
     }
 
+
     #[test]
     fn test_complex_print_statement() {
         // Test the specific failing line: 2840 PRINTTAB(8);:R1=I:GOSUB8790:PRINTG2$;" REPAIR COMPLETED."
@@ -742,5 +728,31 @@ mod tests {
         assert_eq!(tokens[16], Token::Identifier("G2$".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[17], Token::Semicolon);
         assert_eq!(tokens[18], Token::String(" REPAIR COMPLETED.".to_string()));
+    }
+    #[test]
+
+    fn test_tokenize_complex_let() {
+        let mut lexer = Lexer::new("110 LET D(5) = D(5) + 1");
+        let tokens = lexer.tokenize().unwrap();
+
+        println!("Tokens for complex LET statement:");
+        for (i, token) in tokens.iter().enumerate() {
+            println!("  {}: {:?}", i, token);
+        }
+
+        // Should parse as: LineNumber(2840), Print, Identifier("TAB"), LeftParen, Number("8"), RightParen, Semicolon, Colon, Identifier("R1"), Equal, Identifier("I"), Colon, Gosub, Number("8790"), Colon, Print, Identifier("G2$"), Semicolon, String(" REPAIR COMPLETED.")
+        assert_eq!(tokens[0], Token::LineNumber(110));
+        assert_eq!(tokens[1], Token::Let);
+        assert_eq!(tokens[2], Token::Identifier("D".to_string(), IdentifierType::Variable));
+        assert_eq!(tokens[3], Token::LeftParen);
+        assert_eq!(tokens[4], Token::Number("5".to_string()));
+        assert_eq!(tokens[5], Token::RightParen);
+        assert_eq!(tokens[6], Token::Equal);
+        assert_eq!(tokens[7], Token::Identifier("D".to_string(), IdentifierType::Variable));
+        assert_eq!(tokens[8], Token::LeftParen);
+        assert_eq!(tokens[9], Token::Number("5".to_string()));
+        assert_eq!(tokens[10], Token::RightParen);
+        assert_eq!(tokens[11], Token::Plus);
+        assert_eq!(tokens[12], Token::Number("1".to_string()));
     }
 } 
