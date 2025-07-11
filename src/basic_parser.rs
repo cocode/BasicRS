@@ -1,4 +1,4 @@
-use crate::basic_types::{ArrayDecl, SymbolValue};
+use crate::basic_types::{ArrayDecl, IdentifierType, SymbolValue};
 
 use crate::basic_types::{
     Token, BasicError, Statement, Expression,
@@ -154,7 +154,7 @@ impl Parser {
     fn parse_statement(&mut self) -> Result<Statement, BasicError> {
         match self.peek() {
             Some(Token::Let) => self.parse_implicit_or_explicit_let(true),
-            Some(Token::Identifier(_)) => self.parse_implicit_or_explicit_let(false),
+            Some(Token::Identifier(_, _)) => self.parse_implicit_or_explicit_let(false),
             Some(Token::Print) => {
                 self.advance();
                 let mut expressions = Vec::new();
@@ -586,7 +586,7 @@ impl Parser {
                 self.advance();
                 Ok(Expression::new_string(s.clone()))
             }
-            Some(Token::Identifier(name)) => {
+            Some(Token::Identifier(name, id_type)) => {
                 self.advance();
                 if self.check(&Token::LeftParen) {
                     // Function call or array access
@@ -605,15 +605,22 @@ impl Parser {
 
                     self.consume(&Token::RightParen, "Expected ')' after arguments")?;
 
-                    // Determine if this is a function call or array access
-                    // For left-hand sides of assignments, always treat as arrays
-                    // For expressions, use case-based logic
-                    // ✅ NEW: disambiguate by "FN" prefix
-                    if name.to_ascii_uppercase().starts_with("FN") {
-                        Ok(Expression::new_function_call(name.clone(), args))
-                    } else {
-                        Ok(Expression::new_array(name.clone(), args))
-                    }                } else {
+                    match id_type {
+                        IdentifierType::UserDefinedFunction | IdentifierType::BuiltInFunction => {
+                            Ok(Expression::new_function_call(name.clone(), args))
+                        }
+                        IdentifierType::Array => Ok(Expression::new_array(name.clone(), args)),
+                        IdentifierType::Variable => Ok(Expression::new_variable(name.clone())),
+                        other => Err(BasicError::Syntax {
+                            message: format!(
+                                "Unexpected identifier type '{:?}' in function/array expression",
+                                other
+                            ),
+                            basic_line_number: None,
+                            file_line_number: None,
+                        }),
+                    }
+                } else {
                     Ok(Expression::new_variable(name.clone()))
                 }
             }
@@ -679,7 +686,7 @@ impl Parser {
     fn parse_identifier(&mut self) -> Result<String, BasicError> {
         let token = self.peek().cloned();
         match token {
-            Some(Token::Identifier(id)) => {
+            Some(Token::Identifier(id, id_type)) => {
                 self.advance();
                 Ok(id.clone())
             }
@@ -770,10 +777,12 @@ impl Parser {
                 self.advance();
                 Ok(Expression::new_string(s.clone()))
             }
-            Some(Token::Identifier(name)) => {
+            Some(Token::Identifier(name, id_type)) => {
                 self.advance();
                 if self.check(&Token::LeftParen) {
                     // Always treat as array access for left-hand sides
+                    // Later, this is why I added id_type.
+                    println!("add support for id_type");
                     self.advance();
                     let mut args = Vec::new();
 
@@ -810,7 +819,8 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use crate::basic_types::ExpressionType;
+    use clap::Id;
+    use crate::basic_types::{ExpressionType, IdentifierType};
     use super::*;
     use crate::basic_types::{Token, Statement, Expression};
 
@@ -819,7 +829,7 @@ mod tests {
         let tokens = vec![
             Token::LineNumber(10),
             Token::Let,
-            Token::Identifier("X".to_string()),
+            Token::Identifier("X".to_string(), IdentifierType::Variable),
             Token::Equal,
             Token::Number("123".to_string()),
             Token::Newline,
@@ -848,12 +858,12 @@ mod tests {
         let tokens = vec![
             Token::LineNumber(20),
             Token::Let,
-            Token::Identifier("X".to_string()),
+            Token::Identifier("X".to_string(), IdentifierType::Variable),
             Token::Equal,
             Token::Number("1".to_string()),
             Token::Colon,
             Token::Print,
-            Token::Identifier("Y".to_string()),
+            Token::Identifier("Y".to_string(), IdentifierType::Variable),
             Token::Newline,
         ];
 
@@ -895,7 +905,7 @@ mod tests {
             Token::String("This is a comment".to_string()),
             Token::Colon,
             Token::Print, // This should be ignored after REM
-            Token::Identifier("X".to_string()),
+            Token::Identifier("X".to_string(), IdentifierType::Variable),
             Token::Newline,
         ];
         let mut parser = Parser::new(tokens);
@@ -917,13 +927,13 @@ mod tests {
         let tokens = vec![
             Token::LineNumber(10),
             Token::Let,
-            Token::Identifier("X".to_string()),
+            Token::Identifier("X".to_string(), IdentifierType::Variable),
             Token::Equal,
             Token::Number("1".to_string()),
             Token::Newline,
             Token::LineNumber(20),
             Token::Print,
-            Token::Identifier("X".to_string()),
+            Token::Identifier("X".to_string(), IdentifierType::Variable),
             Token::Newline,
         ];
         let mut parser = Parser::new(tokens);
@@ -938,7 +948,7 @@ mod tests {
     fn test_parse_error_missing_line_number() {
         let tokens = vec![
             Token::Let,
-            Token::Identifier("X".to_string()),
+            Token::Identifier("X".to_string(), IdentifierType::Variable),
             Token::Equal,
             Token::Number("1".to_string()),
             Token::Newline,
@@ -984,7 +994,7 @@ mod tests {
             Token::Input,
             Token::String("COMMAND".to_string()),
             Token::Semicolon,
-            Token::Identifier("A$".to_string()),
+            Token::Identifier("A$".to_string(), IdentifierType::Variable),
             Token::Newline,
         ];
         let mut parser = Parser::new(tokens);
@@ -1008,21 +1018,21 @@ mod tests {
         let tokens = vec![
             Token::LineNumber(2840),
             Token::Print,
-            Token::Identifier("TAB".to_string()),
+            Token::Identifier("TAB".to_string(), IdentifierType::BuiltInFunction),
             Token::LeftParen,
             Token::Number("8".to_string()),
             Token::RightParen,
             Token::Semicolon,
             Token::Colon,
-            Token::Identifier("R1".to_string()),
+            Token::Identifier("R1".to_string(), IdentifierType::Variable),
             Token::Equal,
-            Token::Identifier("I".to_string()),
+            Token::Identifier("I".to_string(), IdentifierType::Variable),
             Token::Colon,
             Token::Gosub,
             Token::Number("8790".to_string()),
             Token::Colon,
             Token::Print,
-            Token::Identifier("G2$".to_string()),
+            Token::Identifier("G2$".to_string(), IdentifierType::Variable),
             Token::Semicolon,
             Token::String(" REPAIR COMPLETED.".to_string()),
             Token::Newline,
@@ -1046,7 +1056,7 @@ mod tests {
         let tokens = vec![
             Token::LineNumber(10),
             Token::Let,
-            Token::Identifier("X".to_string()),
+            Token::Identifier("X".to_string(), IdentifierType::Variable),
             Token::Equal,
             Token::Number("1".to_string()),
             Token::Plus,
@@ -1108,9 +1118,9 @@ mod tests {
         let tokens = vec![
             Token::LineNumber(10),
             Token::Let,
-            Token::Identifier("X".to_string()),
+            Token::Identifier("X".to_string(), IdentifierType::Variable),
             Token::Equal,
-            Token::Identifier("ABS".to_string()),
+            Token::Identifier("ABS".to_string(), IdentifierType::BuiltInFunction),
             Token::LeftParen,
             Token::Number("5".to_string()),
             Token::RightParen,

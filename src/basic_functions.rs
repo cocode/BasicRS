@@ -1,4 +1,4 @@
-use crate::basic_types::{BasicError, Token};
+use crate::basic_types::{BasicError, IdentifierType, Token};
 use lazy_static::lazy_static;
 use rand::prelude::*;
 use rand::Rng;
@@ -96,10 +96,17 @@ impl BasicFunction {
             } => {
                 let arg_strings: Vec<String> = args
                     .into_iter()
-                    .map(|t| t.token().unwrap_or("").to_string())
-                    .collect();
-
-                let validated_args = validate_and_convert_args(&arg_strings, arg_types, name)?;
+                    .map(|t| match t {
+                        Token::Number(n) => Ok(n.clone()),
+                        Token::String(s) => Ok(s.clone()),
+                        Token::Identifier(name, IdentifierType::Variable) => Ok(name.clone()),
+                        _ => Err(BasicError::Runtime {
+                            message: format!("Invalid token: {:?}", t),
+                            basic_line_number: None,
+                            file_line_number: None,
+                        }),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;                let validated_args = validate_and_convert_args(&arg_strings, arg_types, name)?;
                 let result = lambda(&validated_args)?;
                 Ok(Token::new_number(&result))
             }

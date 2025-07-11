@@ -86,7 +86,7 @@ impl StrMonoOp {
         // Extract string value from token
         let value = match &first {
             Token::String(s) => s.clone(),
-            Token::Identifier(s) => s.clone(),
+            Token::Identifier(s, _) => s.clone(),
             Token::Number(n) => n.clone(),
             _ => return Err(BasicError::Type {
                 message: "Cannot convert token to string".to_string(),
@@ -135,7 +135,7 @@ impl StrDollarMonoOp {
                 }
             },
             Token::String(s) => s.clone(),
-            Token::Identifier(s) => s.clone(),
+            Token::Identifier(s, _) => s.clone(),
             _ => return Err(BasicError::Type {
                 message: "Cannot convert token to string".to_string(),
                 basic_line_number: None,
@@ -190,7 +190,7 @@ impl StrOp {
                 let value = match &token {
                     Token::String(s) => s.clone(),
                     Token::Number(n) => n.clone(),
-                    Token::Identifier(s) => s.clone(),
+                    Token::Identifier(s, _) => s.clone(),
                     _ => return Err(BasicError::Type {
                         message: "Cannot convert token to string".to_string(),
                         basic_line_number: None,

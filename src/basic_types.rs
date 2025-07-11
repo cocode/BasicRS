@@ -52,12 +52,24 @@ pub enum Token {
     // Values
     Number(String),
     String(String),
-    Identifier(String),
+    Identifier(String, IdentifierType),
     LineNumber(usize),
     
     // Special
     Newline,
 }
+
+impl fmt::Display for IdentifierType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IdentifierType::Variable => write!(f, "Variable"),
+            IdentifierType::Array => write!(f, "Array"),
+            IdentifierType::Keyword => write!(f, "Keyword"),
+            IdentifierType::BuiltInFunction => write!(f, "BuiltInFunction"),
+            IdentifierType::UserDefinedFunction => write!(f, "UserDefinedFunction"),
+            }
+        }
+    }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -105,7 +117,7 @@ impl fmt::Display for Token {
             Token::Colon => write!(f, ":"),
             Token::Number(n) => write!(f, "{}", n),
             Token::String(s) => write!(f, "\"{}\"", s),
-            Token::Identifier(i) => write!(f, "{}", i),
+            Token::Identifier(i, j ) => write!(f, "{} {}", i, j),
             Token::LineNumber(l) => write!(f, "{}", l),
             Token::Newline => write!(f, "\n"),
         }
@@ -121,8 +133,8 @@ impl Token {
         Token::String(s.to_string())
     }
 
-    pub fn new_identifier(id: &str) -> Self {
-        Token::Identifier(id.to_string())
+    pub fn new_identifier(id: &str, id_type: IdentifierType) -> Self {
+        Token::Identifier(id.to_string(), id_type)
     }
 
     pub fn new_equal() -> Self {
@@ -133,12 +145,23 @@ impl Token {
         Token::Greater
     }
 
-    pub fn token(&self) -> Option<&str> {
+    pub fn token(&self) -> Result<&str, BasicError> {
         match self {
-            Token::Number(n) => Some(n),
-            Token::String(s) => Some(s),
-            Token::Identifier(id) => Some(id),
-            _ => None,
+            Token::Number(n) => Ok(n),
+            Token::String(s) => Ok(s),
+            Token::Identifier(id, id_type) => match id_type {
+                IdentifierType::BuiltInFunction => Err(BasicError::Runtime {
+                    message: format!("Cannot pass function '{}' as an argument to a function", id),
+                    basic_line_number: None,
+                    file_line_number: None,
+                }),
+                _ => Ok(id),
+            },
+            _ => Err(BasicError::Runtime {
+                message: format!("Unexpected token type: {:?}", self),
+                basic_line_number: None,
+                file_line_number: None,
+            }),
         }
     }
 }
@@ -517,6 +540,15 @@ pub enum ExpressionType {
         name: String,
         args: Vec<Expression>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IdentifierType {
+    Variable,
+    Array,
+    Keyword,
+    BuiltInFunction,
+    UserDefinedFunction,
 }
 
 impl fmt::Display for ExpressionType {

@@ -1,4 +1,4 @@
-use crate::basic_types::{Token, BasicError, is_valid_identifier};
+use crate::basic_types::{Token, BasicError, is_valid_identifier, IdentifierType};
 
 pub struct Lexer {
     chars: Vec<char>,
@@ -338,7 +338,7 @@ impl Lexer {
         if let Some((identifier, consumed_len)) = self.try_match_identifier(&input_str) {
             // Reset position to where we started plus the consumed length
             self.position = start_pos + consumed_len;
-            return Ok(Token::Identifier(identifier));
+            return Ok(Token::Identifier(identifier, IdentifierType::Variable));
         }
         
         // If we get here, we couldn't match anything
@@ -414,12 +414,12 @@ impl Lexer {
             // Check functions
             for function in &functions {
                 if candidate_upper == *function {
-                    return Some(Token::Identifier(candidate_upper.clone()));
+                    return Some(Token::Identifier(candidate_upper.clone(), IdentifierType::BuiltInFunction));
                 }
             }
             // Check user-defined function pattern: FNX
             if candidate_upper.len() == 3 && &candidate_upper[0..2] == "FN" && candidate_upper.chars().nth(2).unwrap().is_ascii_uppercase() {
-                return Some(Token::Identifier(candidate_upper));
+                return Some(Token::Identifier(candidate_upper, IdentifierType::UserDefinedFunction));
             }
         }
         
@@ -533,7 +533,7 @@ mod tests {
         
         assert_eq!(tokens.len(), 4);
         assert_eq!(tokens[0], Token::Let);
-        assert_eq!(tokens[1], Token::Identifier("X".to_string()));
+        assert_eq!(tokens[1], Token::Identifier("X".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[2], Token::Equal);
         assert_eq!(tokens[3], Token::Number("123".to_string()));
     }
@@ -545,7 +545,7 @@ mod tests {
         
         assert_eq!(tokens.len(), 6);
         assert_eq!(tokens[0], Token::For);
-        assert_eq!(tokens[1], Token::Identifier("I".to_string()));
+        assert_eq!(tokens[1], Token::Identifier("I".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[2], Token::Equal);
         assert_eq!(tokens[3], Token::Number("1".to_string()));
         assert_eq!(tokens[4], Token::To);
@@ -575,7 +575,7 @@ mod tests {
         
         assert_eq!(tokens[0], Token::LineNumber(200));
         assert_eq!(tokens[1], Token::Print);
-        assert_eq!(tokens[2], Token::Identifier("ABS".to_string()));
+        assert_eq!(tokens[2], Token::Identifier("ABS".to_string(), IdentifierType::BuiltInFunction));
         assert_eq!(tokens[3], Token::LeftParen);
         assert_eq!(tokens[4], Token::Minus);
         assert_eq!(tokens[5], Token::Number("12".to_string()));
@@ -652,13 +652,13 @@ mod tests {
         // Should parse as: LineNumber(100), For, Identifier("I"), Equal, Identifier("A"), To, Identifier("B"), Step, Identifier("C")
         assert_eq!(tokens[0], Token::LineNumber(100));
         assert_eq!(tokens[1], Token::For);
-        assert_eq!(tokens[2], Token::Identifier("I".to_string()));
+        assert_eq!(tokens[2], Token::Identifier("I".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[3], Token::Equal);
-        assert_eq!(tokens[4], Token::Identifier("A".to_string()));
+        assert_eq!(tokens[4], Token::Identifier("A".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[5], Token::To);
-        assert_eq!(tokens[6], Token::Identifier("B".to_string()));
+        assert_eq!(tokens[6], Token::Identifier("B".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[7], Token::Step);
-        assert_eq!(tokens[8], Token::Identifier("C".to_string()));
+        assert_eq!(tokens[8], Token::Identifier("C".to_string(), IdentifierType::Variable));
     }
 
     #[test]
@@ -675,17 +675,17 @@ mod tests {
         // Should parse as: LineNumber(850), If, Identifier("R1"), Greater, Number(".98"), Then, Identifier("K3"), Equal, Number("3"), Colon, Identifier("K9"), Equal, Identifier("K9"), Plus, Number("3"), Colon, Goto, Number("980")
         assert_eq!(tokens[0], Token::LineNumber(850));
         assert_eq!(tokens[1], Token::If);
-        assert_eq!(tokens[2], Token::Identifier("R1".to_string()));
+        assert_eq!(tokens[2], Token::Identifier("R1".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[3], Token::Greater);
         assert_eq!(tokens[4], Token::Number(".98".to_string()));
         assert_eq!(tokens[5], Token::Then);
-        assert_eq!(tokens[6], Token::Identifier("K3".to_string()));
+        assert_eq!(tokens[6], Token::Identifier("K3".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[7], Token::Equal);
         assert_eq!(tokens[8], Token::Number("3".to_string()));
         assert_eq!(tokens[9], Token::Colon);
-        assert_eq!(tokens[10], Token::Identifier("K9".to_string()));
+        assert_eq!(tokens[10], Token::Identifier("K9".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[11], Token::Equal);
-        assert_eq!(tokens[12], Token::Identifier("K9".to_string()));
+        assert_eq!(tokens[12], Token::Identifier("K9".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[13], Token::Plus);
         assert_eq!(tokens[14], Token::Number("3".to_string()));
         assert_eq!(tokens[15], Token::Colon);
@@ -705,7 +705,7 @@ mod tests {
         }
         
         assert_eq!(tokens[0], Token::Print);
-        assert_eq!(tokens[1], Token::Identifier("TAB".to_string()));
+        assert_eq!(tokens[1], Token::Identifier("TAB".to_string(), IdentifierType::BuiltInFunction));
         assert_eq!(tokens[2], Token::LeftParen);
         assert_eq!(tokens[3], Token::Number("8".to_string()));
         assert_eq!(tokens[4], Token::RightParen);
@@ -725,21 +725,21 @@ mod tests {
         // Should parse as: LineNumber(2840), Print, Identifier("TAB"), LeftParen, Number("8"), RightParen, Semicolon, Colon, Identifier("R1"), Equal, Identifier("I"), Colon, Gosub, Number("8790"), Colon, Print, Identifier("G2$"), Semicolon, String(" REPAIR COMPLETED.")
         assert_eq!(tokens[0], Token::LineNumber(2840));
         assert_eq!(tokens[1], Token::Print);
-        assert_eq!(tokens[2], Token::Identifier("TAB".to_string()));
+        assert_eq!(tokens[2], Token::Identifier("TAB".to_string(), IdentifierType::BuiltInFunction));
         assert_eq!(tokens[3], Token::LeftParen);
         assert_eq!(tokens[4], Token::Number("8".to_string()));
         assert_eq!(tokens[5], Token::RightParen);
         assert_eq!(tokens[6], Token::Semicolon);
         assert_eq!(tokens[7], Token::Colon);
-        assert_eq!(tokens[8], Token::Identifier("R1".to_string()));
+        assert_eq!(tokens[8], Token::Identifier("R1".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[9], Token::Equal);
-        assert_eq!(tokens[10], Token::Identifier("I".to_string()));
+        assert_eq!(tokens[10], Token::Identifier("I".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[11], Token::Colon);
         assert_eq!(tokens[12], Token::Gosub);
         assert_eq!(tokens[13], Token::Number("8790".to_string()));
         assert_eq!(tokens[14], Token::Colon);
         assert_eq!(tokens[15], Token::Print);
-        assert_eq!(tokens[16], Token::Identifier("G2$".to_string()));
+        assert_eq!(tokens[16], Token::Identifier("G2$".to_string(), IdentifierType::Variable));
         assert_eq!(tokens[17], Token::Semicolon);
         assert_eq!(tokens[18], Token::String(" REPAIR COMPLETED.".to_string()));
     }
