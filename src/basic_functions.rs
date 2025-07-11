@@ -106,7 +106,9 @@ impl BasicFunction {
                             file_line_number: None,
                         }),
                     })
-                    .collect::<Result<Vec<_>, _>>()?;                let validated_args = validate_and_convert_args(&arg_strings, arg_types, name)?;
+                    .collect::<Result<Vec<_>, _>>()?;
+                
+                let validated_args = validate_and_convert_args(&arg_strings, arg_types, name)?;
                 let result = lambda(&validated_args)?;
                 Ok(Token::new_number(&result))
             }

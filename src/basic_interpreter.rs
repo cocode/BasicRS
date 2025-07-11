@@ -63,6 +63,42 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
+    /// Helper method to add line number information to errors that don't have it
+    fn add_line_info_to_error(&self, error: BasicError) -> BasicError {
+        match error {
+            BasicError::Syntax { message, basic_line_number: None, file_line_number } => {
+                BasicError::Syntax {
+                    message,
+                    basic_line_number: Some(self.get_current_line().line_number),
+                    file_line_number: file_line_number.or(Some(self.file_line_number)),
+                }
+            }
+            BasicError::Runtime { message, basic_line_number: None, file_line_number } => {
+                BasicError::Runtime {
+                    message,
+                    basic_line_number: Some(self.get_current_line().line_number),
+                    file_line_number: file_line_number.or(Some(self.file_line_number)),
+                }
+            }
+            BasicError::Type { message, basic_line_number: None, file_line_number } => {
+                BasicError::Type {
+                    message,
+                    basic_line_number: Some(self.get_current_line().line_number),
+                    file_line_number: file_line_number.or(Some(self.file_line_number)),
+                }
+            }
+            BasicError::Internal { message, basic_line_number: None, file_line_number } => {
+                BasicError::Internal {
+                    message,
+                    basic_line_number: Some(self.get_current_line().line_number),
+                    file_line_number: file_line_number.or(Some(self.file_line_number)),
+                }
+            }
+            // If error already has line number info, return as-is
+            other => other,
+        }
+    }
+
     pub fn new(program: Program) -> Self {
         let mut line_number_map = HashMap::new();
         for (i, line) in program.lines.iter().enumerate() {
@@ -669,7 +705,7 @@ impl Interpreter {
             }
             Statement::Dim { arrays } => {
                 for array in arrays {
-                    self.symbols.create_array(array.name.clone(), array.dimensions.clone())?;
+                    self.symbols.create_array(array.name.clone(), array.dimensions.clone()).map_err(|e| self.add_line_info_to_error(e))?;
                 }
                 Ok(())
             }
@@ -731,7 +767,7 @@ impl Interpreter {
                     .collect();
 
                 let indices = idx_values?;
-                self.symbols.get_array_element(name, &indices)
+                self.symbols.get_array_element(name, &indices).map_err(|e| self.add_line_info_to_error(e))
             }
 
             ExpressionType::FunctionCall { name, args } => {
@@ -741,7 +777,7 @@ impl Interpreter {
                     if expected_types.len() != args.len() {
                         return Err(BasicError::Runtime {
                             message: format!("Function '{}' expects {} arguments, got {}", name, expected_types.len(), args.len()),
-                            basic_line_number: None,
+                            basic_line_number: Some(self.get_current_line().line_number),
                             file_line_number: Some(self.file_line_number),
                         });
                     }
@@ -758,26 +794,26 @@ impl Interpreter {
                             (crate::basic_functions::ArgType::Number, other) => {
                                 return Err(BasicError::Runtime {
                                     message: format!("Function '{}' expects a number argument, got {:?}", name, other),
-                                    basic_line_number: None,
+                                    basic_line_number: Some(self.get_current_line().line_number),
                                     file_line_number: Some(self.file_line_number),
                                 });
                             }
                             (crate::basic_functions::ArgType::String, other) => {
                                 return Err(BasicError::Runtime {
                                     message: format!("Function '{}' expects a string argument, got {:?}", name, other),
-                                    basic_line_number: None,
+                                    basic_line_number: Some(self.get_current_line().line_number),
                                     file_line_number: Some(self.file_line_number),
                                 });
                             }
                         }
                     }
-                    let result = function.call(evaluated_args)?;
+                    let result = function.call(evaluated_args).map_err(|e| self.add_line_info_to_error(e))?;
                     match result {
                         Token::Number(n) => Ok(SymbolValue::Number(n.parse().unwrap_or(0.0))),
                         Token::String(s) => Ok(SymbolValue::String(s)),
                         _ => Err(BasicError::Runtime {
                             message: format!("Unexpected result type from function '{}'", name),
-                            basic_line_number: None,
+                            basic_line_number: Some(self.get_current_line().line_number),
                             file_line_number: Some(self.file_line_number),
                         }),
                     }
@@ -800,7 +836,7 @@ impl Interpreter {
                                 } else {
                                     return Err(BasicError::Runtime {
                                         message: format!("User-defined function '{}' expects number arguments", name),
-                                        basic_line_number: None,
+                                        basic_line_number: Some(self.get_current_line().line_number),
                                         file_line_number: Some(self.file_line_number),
                                     });
                                 }
@@ -825,7 +861,7 @@ impl Interpreter {
                         } else {
                             Err(BasicError::Runtime {
                                 message: format!("Undefined user function '{}'", name),
-                                basic_line_number: None,
+                                basic_line_number: Some(self.get_current_line().line_number),
                                 file_line_number: Some(self.file_line_number),
                             })
                         }
@@ -839,7 +875,7 @@ impl Interpreter {
                             } else {
                                 return Err(BasicError::Runtime {
                                     message: format!("Invalid argument for function '{}'", name),
-                                    basic_line_number: None,
+                                    basic_line_number: Some(self.get_current_line().line_number),
                                     file_line_number: Some(self.file_line_number),
                                 });
                             }
@@ -1015,7 +1051,7 @@ impl Interpreter {
                     })
                     .collect();
                 let indices = idx_values?;
-                self.symbols.set_array_element(name, &indices, value)?;
+                self.symbols.set_array_element(name, &indices, value).map_err(|e| self.add_line_info_to_error(e))?;
                 Ok(())
             }
             _ => Err(BasicError::Runtime {
