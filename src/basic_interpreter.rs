@@ -45,6 +45,7 @@ pub struct Interpreter {
     gosub_stack: Vec<ControlLocation>,
     data_pointer: usize,
     data_values: Vec<SymbolValue>,
+    data_line_map: HashMap<usize, usize>, // Maps line numbers to data positions
     run_status: RunStatus,
     trace_file: Option<File>,
     coverage: Option<HashMap<usize, usize>>,
@@ -81,6 +82,7 @@ impl Interpreter {
             gosub_stack: Vec::new(),
             data_pointer: 0,
             data_values: Vec::new(), // Initialize to empty, data values are collected later
+            data_line_map: HashMap::new(),
             run_status: RunStatus::Run,
             trace_file: None,
             coverage: None,
@@ -235,9 +237,12 @@ impl Interpreter {
     }
 
     pub fn run(&mut self) -> Result<(), BasicError> {
+        // Collect all data values and build line mapping
         for pl in &self.program.lines {
             for stmt in &pl.statements {
                 if let Statement::Data { values } = stmt {
+                    // Record the current position as the start of this line's data
+                    self.data_line_map.insert(pl.line_number, self.data_values.len());
                     self.data_values.extend(values.iter().cloned());
                 }
             }
@@ -607,9 +612,16 @@ impl Interpreter {
             }
             Statement::Restore { line } => {
                 if let Some(line_num) = line {
-                    // Find the line number and reset data pointer
-                    // For now, just reset to beginning
-                    self.data_pointer = 0;
+                    // Find the line number and reset data pointer to that line's data start
+                    if let Some(&data_pos) = self.data_line_map.get(line_num) {
+                        self.data_pointer = data_pos;
+                    } else {
+                        return Err(BasicError::Runtime {
+                            message: format!("Line {} has no DATA statements", line_num),
+                            basic_line_number: Some(self.get_current_line().line_number),
+                            file_line_number: Some(self.file_line_number),
+                        });
+                    }
                 } else {
                     // Reset to beginning
                     self.data_pointer = 0;
