@@ -31,7 +31,7 @@ impl Parser {
             let line_number = self.parse_line_number()?;
             self.current_basic_line = Some(line_number);
             // println!("line {}", line_number);
-            let source = self.get_line_source();
+            let source = self.get_rebuilt_line_source();
             let statements = self.parse_statements()?;
 
             program.add_line(line_number, source, statements);
@@ -616,7 +616,7 @@ impl Parser {
                                 "Unexpected identifier type '{:?}' in function/array expression",
                                 other
                             ),
-                            basic_line_number: None,
+                            basic_line_number: None,  // TODO catch unlikely error
                             file_line_number: None,
                         }),
                     }
@@ -716,8 +716,9 @@ impl Parser {
             }),
         }
     }
-
-    fn get_line_source(&self) -> String {
+    /// This method reconstitutes the source line from the tokens in the statement.
+    /// It is NOT the actual incoming source line. That is lost in the lexer.
+    fn get_rebuilt_line_source(&self) -> String {
         let mut source = String::new();
         let mut i = self.current;
         while i < self.tokens.len() {
@@ -766,6 +767,8 @@ impl Parser {
     //     Ok(statements)
     // }
 
+    /// Parse an expression that is the left hand side of a LET statement.
+    /// LET D(5) = 99
     fn parse_lvalue(&mut self) -> Result<Expression, BasicError> {
         let token = self.peek().cloned();
         match token {
@@ -780,9 +783,6 @@ impl Parser {
             Some(Token::Identifier(name, id_type)) => {
                 self.advance();
                 if self.check(&Token::LeftParen) {
-                    // Always treat as array access for left-hand sides
-                    // Later, this is why I added id_type.
-                    println!("add support for id_type");
                     self.advance();
                     let mut args = Vec::new();
 
