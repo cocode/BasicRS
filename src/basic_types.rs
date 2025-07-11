@@ -195,32 +195,28 @@ impl fmt::Display for BasicError {
         match self {
             BasicError::Syntax { message, basic_line_number, file_line_number } => {
                 match (basic_line_number, file_line_number) {
-                    (Some(basic), Some(file)) => write!(f, "Syntax error at BASIC line {} (file line {}): {}", basic, file, message),
-                    (Some(basic), None) => write!(f, "Syntax error at BASIC line {}: {}", basic, message),
+                    (Some(basic), _) => write!(f, "Syntax error at BASIC line {}: {}", basic, message),
                     (None, Some(file)) => write!(f, "Syntax error at file line {}: {}", file, message),
                     (None, None) => write!(f, "Syntax error: {}", message),
                 }
             }
             BasicError::Runtime { message, basic_line_number, file_line_number } => {
                 match (basic_line_number, file_line_number) {
-                    (Some(basic), Some(file)) => write!(f, "Runtime error at BASIC line {} (file line {}): {}", basic, file, message),
-                    (Some(basic), None) => write!(f, "Runtime error at BASIC line {}: {}", basic, message),
+                    (Some(basic), _) => write!(f, "Runtime error at BASIC line {}: {}", basic, message),
                     (None, Some(file)) => write!(f, "Runtime error at file line {}: {}", file, message),
                     (None, None) => write!(f, "Runtime error: {}", message),
                 }
             }
             BasicError::Internal { message, basic_line_number, file_line_number } => {
                         match (basic_line_number, file_line_number) {
-                            (Some(basic), Some(file)) => write!(f, "Internal error at BASIC line {} (file line {}): {}", basic, file, message),
-                            (Some(basic), None) => write!(f, "Internal error at BASIC line {}: {}", basic, message),
+                            (Some(basic), _) => write!(f, "Internal error at BASIC line {}: {}", basic, message),
                             (None, Some(file)) => write!(f, "Internal error at file line {}: {}", file, message),
                             (None, None) => write!(f, "Internal error: {}", message),
                         }
                     }
             BasicError::Type { message, basic_line_number, file_line_number } => {
                 match (basic_line_number, file_line_number) {
-                    (Some(basic), Some(file)) => write!(f, "Type error at BASIC line {} (file line {}): {}", basic, file, message),
-                    (Some(basic), None) => write!(f, "Type error at BASIC line {}: {}", basic, message),
+                    (Some(basic), _) => write!(f, "Type error at BASIC line {}: {}", basic, message),
                     (None, Some(file)) => write!(f, "Type error at file line {}: {}", file, message),
                     (None, None) => write!(f, "Type error: {}", message),
                 }
