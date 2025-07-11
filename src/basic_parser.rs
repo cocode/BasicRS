@@ -1,4 +1,4 @@
-use crate::basic_types::{ArrayDecl, IdentifierType, SymbolValue};
+use crate::basic_types::{ArrayDecl, ExpressionType, IdentifierType, SymbolValue};
 
 use crate::basic_types::{
     Token, BasicError, Statement, Expression,
@@ -588,7 +588,9 @@ impl Parser {
             }
             Some(Token::Identifier(name, id_type)) => {
                 self.advance();
+                let mut array_ref = false;
                 if self.check(&Token::LeftParen) {
+                    array_ref = true;
                     // Function call or array access
                     self.advance();
                     let mut args = Vec::new();
@@ -610,7 +612,14 @@ impl Parser {
                             Ok(Expression::new_function_call(name.clone(), args))
                         }
                         IdentifierType::Array => Ok(Expression::new_array(name.clone(), args)),
-                        IdentifierType::Variable => Ok(Expression::new_variable(name.clone())),
+                        IdentifierType::Variable => {
+                            // Not yet consistent on array refs. Should the token be array or variable?
+                            if array_ref {
+                                Ok(Expression::new_array(name.clone(), args))
+                            } else {
+                                Ok(Expression::new_variable(name.clone()))
+                            }
+                        },
                         other => Err(BasicError::Syntax {
                             message: format!(
                                 "Unexpected identifier type '{:?}' in function/array expression",
@@ -819,10 +828,8 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use clap::Id;
-    use crate::basic_types::{ExpressionType, IdentifierType};
+    use crate::basic_types::{ExpressionType, IdentifierType, Token, Statement, Expression};
     use super::*;
-    use crate::basic_types::{Token, Statement, Expression};
 
     #[test]
     fn test_parse_line_number() {
@@ -1123,4 +1130,42 @@ mod tests {
             panic!("Expected LET statement");
         }
     }
+}
+
+#[test]
+fn test_parse_let_statement_with_array() {
+    let tokens = vec![
+        Token::Identifier("D".to_string(), IdentifierType::Variable),
+        Token::LeftParen,
+        Token::Number("5".to_string()),
+        Token::RightParen,
+    ];
+
+
+    let mut parser = Parser::new(tokens);
+    let expression = parser.parse_expression().unwrap();
+
+    println!("Parsed expression: {}", expression);
+ }
+#[test]
+fn test_parse_let_statement_with_array_plus_one() {
+    let tokens = vec![
+        // Token::Identifier("D".to_string(), IdentifierType::Variable),
+        // Token::LeftParen,
+        // Token::Number("5".to_string()),
+        // Token::RightParen,
+        // Token::Equal,
+        Token::Identifier("D".to_string(), IdentifierType::Variable),
+        Token::LeftParen,
+        Token::Number("5".to_string()),
+        Token::RightParen,
+        Token::Plus,
+        Token::Number("1".to_string()),
+    ];
+
+
+    let mut parser = Parser::new(tokens);
+    let expression = parser.parse_expression().unwrap();
+
+    println!("Parsed expression: {}", expression);
 }
