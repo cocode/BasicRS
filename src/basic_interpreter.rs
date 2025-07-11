@@ -6,7 +6,7 @@ use crate::basic_symbols::SymbolTable;
 
 use crate::basic_types::{
     Program, ProgramLine, Statement, Expression, BasicError,
-    ExpressionType, RunStatus, SymbolValue, Token,
+    ExpressionType, RunStatus, SymbolValue, Token, PrintItem,
 };
 
 use crate::basic_functions::PredefinedFunctions;
@@ -59,6 +59,7 @@ pub struct Interpreter {
     // the next statement in the main loop, we are already where we want to be. So set this
     // on control transfers. (GOTO, GOSUB, FOR/NEXT, IF. Anything else?)
     advance_stmt: bool,
+    cursor_position: usize,     // Current cursor position for PRINT formatting
 }
 
 impl Interpreter {
@@ -91,6 +92,7 @@ impl Interpreter {
             line_number_map,
             file_line_number: 1,
             advance_stmt: true,
+            cursor_position: 0,
         }
     }
 
@@ -362,15 +364,54 @@ impl Interpreter {
                     }
                 }
             }
-            Statement::Print { expressions } => {
-                for (i, expr) in expressions.iter().enumerate() {
-                    let value = self.evaluate_expression(expr)?;
-                    print!("{}", value);
-                    if i < expressions.len() - 1 {
-                        print!(" ");
+            Statement::Print { items } => {
+                let mut needs_newline = true;
+                
+                for item in items {
+                    match item {
+                        PrintItem::Expression(expr) => {
+                            let value = self.evaluate_expression(expr)?;
+                            let value_str = value.to_string();
+                            print!("{}", value_str);
+                            self.cursor_position += value_str.len();
+                        }
+                        PrintItem::Tab(n) => {
+                            // Move cursor to specific column (1-based)
+                            if *n > self.cursor_position {
+                                let spaces_needed = *n - self.cursor_position;
+                                print!("{}", " ".repeat(spaces_needed));
+                                self.cursor_position = *n;
+                            }
+                        }
+                        PrintItem::Comma => {
+                            // Tab to next column (every 14 characters)
+                            let next_tab = ((self.cursor_position / 14) + 1) * 14;
+                            if next_tab > self.cursor_position {
+                                let spaces_needed = next_tab - self.cursor_position;
+                                print!("{}", " ".repeat(spaces_needed));
+                                self.cursor_position = next_tab;
+                            }
+                        }
+                        PrintItem::Semicolon => {
+                            // Semicolon adds a single space between items
+                            // But if this is the last item, suppress newline instead
+                            if item == items.last().unwrap() {
+                                needs_newline = false;
+                            } else {
+                                print!(" ");
+                                self.cursor_position += 1;
+                            }
+                        }
                     }
                 }
-                println!();
+                
+                // Add newline unless last item was a semicolon
+                if needs_newline {
+                    println!();
+                    self.cursor_position = 0;
+                }
+                
+                io::stdout().flush()?;
                 Ok(())
             }
             Statement::Input { var, prompt } => {

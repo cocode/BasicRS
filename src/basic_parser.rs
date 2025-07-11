@@ -1,7 +1,7 @@
 use crate::basic_types::{ArrayDecl, ExpressionType, IdentifierType, SymbolValue};
 
 use crate::basic_types::{
-    Token, BasicError, Statement, Expression,
+    Token, BasicError, Statement, Expression, PrintItem,
     Program
 };
 
@@ -157,21 +157,44 @@ impl Parser {
             Some(Token::Identifier(_, _)) => self.parse_implicit_or_explicit_let(false),
             Some(Token::Print) => {
                 self.advance();
-                let mut expressions = Vec::new();
+                let mut items = Vec::new();
                 
                 // Parse comma/semicolon-separated expressions
                 if !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
                     loop {
                         // Parse expression (or empty string if just spacing)
-                        if self.check(&Token::Comma) || self.check(&Token::Semicolon) {
-                            // Empty expression (just spacing)
-                            expressions.push(Expression::new_string("".to_string()));
+                        if self.check(&Token::Comma) {
+                            items.push(PrintItem::Comma);
+                            self.advance();
+                        } else if self.check(&Token::Semicolon) {
+                            items.push(PrintItem::Semicolon);
                             self.advance();
                         } else {
                             // Parse actual expression
-                            expressions.push(self.parse_expression()?);
+                            let expr = self.parse_expression()?;
                             
-                            if self.check(&Token::Comma) || self.check(&Token::Semicolon) {
+                            // Check if this is a TAB function call
+                            if let ExpressionType::FunctionCall { name, args } = &expr.expr_type {
+                                if name == "TAB" && args.len() == 1 {
+                                    // Extract the tab position
+                                    if let ExpressionType::Number(n) = &args[0].expr_type {
+                                        items.push(PrintItem::Tab(*n as usize));
+                                    } else {
+                                        items.push(PrintItem::Expression(expr));
+                                    }
+                                } else {
+                                    items.push(PrintItem::Expression(expr));
+                                }
+                            } else {
+                                items.push(PrintItem::Expression(expr));
+                            }
+                            
+                            // Check for separator after the expression
+                            if self.check(&Token::Comma) {
+                                items.push(PrintItem::Comma);
+                                self.advance();
+                            } else if self.check(&Token::Semicolon) {
+                                items.push(PrintItem::Semicolon);
                                 self.advance();
                             } else {
                                 break;
@@ -195,7 +218,7 @@ impl Parser {
                     });
                 }
                 
-                Ok(Statement::Print { expressions })
+                Ok(Statement::Print { items })
             }
             Some(Token::Input) => {
                 self.advance();
@@ -893,12 +916,16 @@ mod tests {
         }
 
         // Check PRINT statement
-        if let Statement::Print { expressions } = &program.lines[0].statements[1] {
-            assert_eq!(expressions.len(), 1);
-            if let Expression { expr_type: ExpressionType::Variable(name), .. } = &expressions[0] {
-                assert_eq!(name, "Y");
+        if let Statement::Print { items } = &program.lines[0].statements[1] {
+            assert_eq!(items.len(), 1);
+            if let PrintItem::Expression(expr) = &items[0] {
+                if let Expression { expr_type: ExpressionType::Variable(name), .. } = expr {
+                    assert_eq!(name, "Y");
+                } else {
+                    panic!("Expected variable expression");
+                }
             } else {
-                panic!("Expected variable expression");
+                panic!("Expected PrintItem::Expression");
             }
         } else {
             panic!("Expected PRINT statement");

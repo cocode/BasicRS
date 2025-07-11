@@ -286,11 +286,19 @@ impl fmt::Display for ArrayDecl {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum PrintItem {
+    Expression(Expression),
+    Tab(usize),
+    Comma,      // Tab to next column
+    Semicolon,  // No spacing
+}
+
 // Statement types
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Let { var: Expression, value: Expression },
-    Print { expressions: Vec<Expression> },
+    Print { items: Vec<PrintItem> },
     Input { var: String, prompt: Option<String> },
     If { condition: Expression },
     Then,
@@ -321,7 +329,7 @@ impl Statement {
     }
 
     pub fn new_print(expressions: Vec<Expression>) -> Self {
-        Statement::Print { expressions }
+        Statement::Print { items: expressions.into_iter().map(PrintItem::Expression).collect() }
     }
     pub fn new_input(var: String) -> Self {
         Statement::Input { var, prompt: None }
@@ -407,13 +415,15 @@ impl fmt::Display for Statement {
 
         match self {
             Let { var, value } => write!(f, "LET {} = {}", var, value),
-            Print { expressions } => {
+            Print { items } => {
                 write!(f, "PRINT")?;
-                for (i, expr) in expressions.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
+                for (i, item) in items.iter().enumerate() {
+                    match item {
+                        PrintItem::Expression(expr) => write!(f, " {}", expr)?,
+                        PrintItem::Tab(n) => write!(f, "\t{}", " ".repeat(*n))?,
+                        PrintItem::Comma => write!(f, ", ")?,
+                        PrintItem::Semicolon => write!(f, "; ")?,
                     }
-                    write!(f, "{}", expr)?;
                 }
                 Ok(())
             }
