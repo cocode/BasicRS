@@ -945,7 +945,15 @@ impl SymbolValue {
 impl fmt::Display for SymbolValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SymbolValue::Number(n) => write!(f, "{}", n),
+            SymbolValue::Number(n) => {
+                // In classic BASIC, positive numbers get both leading and trailing spaces
+                // Negative numbers get only trailing space (minus sign serves as leading char)
+                if *n >= 0.0 {
+                    write!(f, " {} ", n)
+                } else {
+                    write!(f, "{} ", n)
+                }
+            },
             SymbolValue::String(s) => write!(f, "{}", s),
 
             SymbolValue::Array1DNumber(a) => write!(f, "{:?}", a),

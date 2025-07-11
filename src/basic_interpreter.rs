@@ -393,14 +393,12 @@ impl Interpreter {
                             }
                         }
                         PrintItem::Semicolon => {
-                            // Semicolon adds a single space between items
-                            // But if this is the last item, suppress newline instead
+                            // Semicolon suppresses spacing and newlines
+                            // If this is the last item, suppress newline
                             if item == items.last().unwrap() {
                                 needs_newline = false;
-                            } else {
-                                print!(" ");
-                                self.cursor_position += 1;
                             }
+                            // Semicolons add no spacing at all
                         }
                     }
                 }
@@ -417,7 +415,7 @@ impl Interpreter {
             Statement::Input { var, prompt } => {
                 let mut input = String::new();
                 if let Some(p) = prompt {
-                    print!("{}", p);
+                    print!("{}? ", p);
                 } else {
                     print!("? ");
                 }
