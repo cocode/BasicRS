@@ -46,7 +46,8 @@ fn main() {
     writeln!(f, "    if let Ok(content) = fs::read_to_string(program_path) {{").unwrap();
     writeln!(f, "        if let Some(first_line) = content.lines().next() {{").unwrap();
     writeln!(f, "            if let Some(pos) = first_line.find(\"@EXPECT_EXIT_CODE\") {{").unwrap();
-    writeln!(f, "                if let Ok(code) = first_line[..pos].trim().parse() {{").unwrap();
+    writeln!(f, "                let after = &first_line[pos + \"@EXPECT_EXIT_CODE=\".len()..];").unwrap();
+    writeln!(f, "                if let Ok(code) = after.trim().parse() {{").unwrap();
     writeln!(f, "                    return code;").unwrap();
     writeln!(f, "                }}").unwrap();
     writeln!(f, "            }}").unwrap();
