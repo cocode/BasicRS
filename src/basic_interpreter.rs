@@ -384,8 +384,8 @@ impl Interpreter {
                             }
                         }
                         PrintItem::Comma => {
-                            // Tab to next column (every 14 characters)
-                            let next_tab = ((self.cursor_position / 14) + 1) * 14;
+                            // Tab to next column (every 8 characters, standard tab stops)
+                            let next_tab = ((self.cursor_position / 8) + 1) * 8;
                             if next_tab > self.cursor_position {
                                 let spaces_needed = next_tab - self.cursor_position;
                                 print!("{}", " ".repeat(spaces_needed));
