@@ -11,6 +11,7 @@ use crate::basic_types::{
 
 use crate::basic_functions::PredefinedFunctions;
 use crate::basic_operators::{BASIC_FALSE_F, BASIC_TRUE_F};
+use crate::basic_dialect::UPPERCASE_INPUT;
 
 const TRACE_FILE_NAME: &str = "basic_trace.txt";
 
@@ -52,8 +53,6 @@ pub struct Interpreter {
     breakpoints: HashSet<(usize, usize)>,
     data_breakpoints: HashSet<String>,
     line_number_map: HashMap<usize, usize>, // Maps line numbers to program indices
-    file_line_number: usize,    // Current file line number for error reporting. We don't
-                                // track this currently. I think we'd need to add it to ProgramLine
     // Normally, after a statement is executed, we advance to the next line, in the main loop
     // But if we just did a control transfer, like a GOTO, we don't then want to advance to
     // the next statement in the main loop, we are already where we want to be. So set this
@@ -70,28 +69,28 @@ impl Interpreter {
                 BasicError::Syntax {
                     message,
                     basic_line_number: Some(self.get_current_line().line_number),
-                    file_line_number: file_line_number.or(Some(self.file_line_number)),
+                    file_line_number,
                 }
             }
             BasicError::Runtime { message, basic_line_number: None, file_line_number } => {
                 BasicError::Runtime {
                     message,
                     basic_line_number: Some(self.get_current_line().line_number),
-                    file_line_number: file_line_number.or(Some(self.file_line_number)),
+                    file_line_number,
                 }
             }
             BasicError::Type { message, basic_line_number: None, file_line_number } => {
                 BasicError::Type {
                     message,
                     basic_line_number: Some(self.get_current_line().line_number),
-                    file_line_number: file_line_number.or(Some(self.file_line_number)),
+                    file_line_number,
                 }
             }
             BasicError::Internal { message, basic_line_number: None, file_line_number } => {
                 BasicError::Internal {
                     message,
                     basic_line_number: Some(self.get_current_line().line_number),
-                    file_line_number: file_line_number.or(Some(self.file_line_number)),
+                    file_line_number,
                 }
             }
             // If error already has line number info, return as-is
@@ -126,7 +125,6 @@ impl Interpreter {
             breakpoints: HashSet::new(),
             data_breakpoints: HashSet::new(),
             line_number_map,
-            file_line_number: 1,
             advance_stmt: true,
             cursor_position: 0,
         }
@@ -214,7 +212,7 @@ impl Interpreter {
                                 return Err(BasicError::Runtime {
                                     message: format!("Unexpected NEXT for '{}' while looking for NEXT for '{}'", next_var, var),
                                     basic_line_number: Some(self.program.lines[i].line_number),
-                                    file_line_number: Some(self.file_line_number),
+                                    file_line_number: None,
                                 });
                             }
                         } else {
@@ -229,7 +227,7 @@ impl Interpreter {
         Err(BasicError::Runtime {
             message: format!("No matching NEXT found for FOR {}", var),
             basic_line_number: Some(self.get_current_line().line_number),
-            file_line_number: Some(self.file_line_number),
+            file_line_number: None,
         })
     }
 
@@ -363,7 +361,7 @@ impl Interpreter {
                                 _ => Err(BasicError::Runtime {
                                     message: "Array index must be a non-negative integer".to_string(),
                                     basic_line_number: Some(self.get_current_line().line_number),
-                                    file_line_number: Some(self.file_line_number),
+                                    file_line_number: None,
                                 })
                             })
                             .collect();
@@ -378,7 +376,7 @@ impl Interpreter {
                                 } = err
                                 {
                                     *basic_line_number = Some(self.get_current_line().line_number);
-                                    *file_line_number = Some(self.file_line_number);
+                                    *file_line_number = None;
                                 }
                                 err
                             })?;
@@ -394,7 +392,7 @@ impl Interpreter {
                             Err(BasicError::Runtime {
                                 message: "Invalid left-hand side in assignment".to_string(),
                                 basic_line_number: Some(self.get_current_line().line_number),
-                                file_line_number: Some(self.file_line_number),
+                                file_line_number: None,
                             })
                         }
                     }
@@ -457,10 +455,32 @@ impl Interpreter {
                 }
                 io::stdout().flush()?;
                 io::stdin().read_line(&mut input)?;
-                let value = if let Ok(n) = input.trim().parse::<f64>() {
-                    SymbolValue::Number(n)
+                
+                // Determine the expected type based on variable name
+                let is_string_variable = var.ends_with('$');
+                
+                let value = if is_string_variable {
+                    // For string variables (A$), always treat input as string
+                    let input_str = input.trim().to_string();
+                    let processed_str = if UPPERCASE_INPUT {
+                        input_str.to_uppercase()
+                    } else {
+                        input_str
+                    };
+                    SymbolValue::String(processed_str)
                 } else {
-                    SymbolValue::String(input.trim().to_string())
+                    // For numeric variables (A), try to parse as number first
+                    if let Ok(n) = input.trim().parse::<f64>() {
+                        SymbolValue::Number(n)
+                    } else {
+                        let input_str = input.trim().to_string();
+                        let processed_str = if UPPERCASE_INPUT {
+                            input_str.to_uppercase()
+                        } else {
+                            input_str
+                        };
+                        SymbolValue::String(processed_str)
+                    }
                 };
                 self.put_symbol(var.clone(), value);
                 Ok(())
@@ -478,7 +498,7 @@ impl Interpreter {
                     _ => return Err(BasicError::Type {
                         message: "IF condition must evaluate to a number".to_string(),
                         basic_line_number: Some(self.get_current_line().line_number), // TODO point to correct statement on multi-statement line
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     }),
                 }
                 Ok(())
@@ -504,7 +524,7 @@ impl Interpreter {
                     _ => return Err(BasicError::Runtime {
                         message: "FOR loop start value must be a number".to_string(),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     }),
                 };
 
@@ -514,7 +534,7 @@ impl Interpreter {
                     _ => return Err(BasicError::Runtime {
                         message: "FOR loop stop value must be a number".to_string(),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     }),
                 };
 
@@ -524,7 +544,7 @@ impl Interpreter {
                     _ => return Err(BasicError::Runtime {
                         message: "FOR loop step must be a number".to_string(),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     }),
                 };
 
@@ -557,7 +577,7 @@ impl Interpreter {
                         return Err(BasicError::Runtime {
                             message: format!("Mismatched NEXT: expected '{}', found '{}'", for_record.var, var),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         });
                     }
 
@@ -567,7 +587,7 @@ impl Interpreter {
                         _ => return Err(BasicError::Runtime {
                             message: "FOR loop variable must be numeric".to_string(),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         }),
                     };
 
@@ -576,7 +596,7 @@ impl Interpreter {
                         _ => return Err(BasicError::Runtime {
                             message: "FOR loop step must be numeric".to_string(),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         }),
                     };
 
@@ -585,7 +605,7 @@ impl Interpreter {
                         _ => return Err(BasicError::Runtime {
                             message: "FOR loop stop value must be numeric".to_string(),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         }),
                     };
                     let next_value = current + step;
@@ -607,7 +627,7 @@ impl Interpreter {
                     Err(BasicError::Runtime {
                         message: "NEXT without matching FOR".to_string(),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     })
                 }
             }
@@ -629,7 +649,7 @@ impl Interpreter {
                     Err(BasicError::Runtime {
                         message: "RETURN without GOSUB".to_string(),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     })
                 }
             }
@@ -649,7 +669,7 @@ impl Interpreter {
                         return Err(BasicError::Runtime {
                             message: "Out of DATA values".to_string(),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         });
                     }
                     
@@ -667,7 +687,7 @@ impl Interpreter {
                                     _ => Err(BasicError::Runtime {
                                         message: "Array index must be a non-negative integer".to_string(),
                                         basic_line_number: Some(self.get_current_line().line_number),
-                                        file_line_number: Some(self.file_line_number),
+                                        file_line_number: None,
                                     })
                                 })
                                 .collect();
@@ -678,7 +698,7 @@ impl Interpreter {
                             return Err(BasicError::Runtime {
                                 message: "Invalid variable in READ statement".to_string(),
                                 basic_line_number: Some(self.get_current_line().line_number),
-                                file_line_number: Some(self.file_line_number),
+                                file_line_number: None,
                             });
                         }
                     }
@@ -694,7 +714,7 @@ impl Interpreter {
                         return Err(BasicError::Runtime {
                             message: format!("Line {} has no DATA statements", line_num),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         });
                     }
                 } else {
@@ -715,7 +735,7 @@ impl Interpreter {
                     _ => return Err(BasicError::Runtime {
                         message: "ON index must be a positive integer".to_string(),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     })
                 };
                 
@@ -730,7 +750,7 @@ impl Interpreter {
                     _ => return Err(BasicError::Runtime {
                         message: "ON index must be a positive integer".to_string(),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     })
                 };
                 
@@ -761,7 +781,7 @@ impl Interpreter {
                         _ => Err(BasicError::Runtime {
                             message: "Array index must be a non-negative integer".to_string(),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         })
                     })
                     .collect();
@@ -778,7 +798,7 @@ impl Interpreter {
                         return Err(BasicError::Runtime {
                             message: format!("Function '{}' expects {} arguments, got {}", name, expected_types.len(), args.len()),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         });
                     }
                     let mut evaluated_args = Vec::new();
@@ -795,14 +815,14 @@ impl Interpreter {
                                 return Err(BasicError::Runtime {
                                     message: format!("Function '{}' expects a number argument, got {:?}", name, other),
                                     basic_line_number: Some(self.get_current_line().line_number),
-                                    file_line_number: Some(self.file_line_number),
+                                    file_line_number: None,
                                 });
                             }
                             (crate::basic_functions::ArgType::String, other) => {
                                 return Err(BasicError::Runtime {
                                     message: format!("Function '{}' expects a string argument, got {:?}", name, other),
                                     basic_line_number: Some(self.get_current_line().line_number),
-                                    file_line_number: Some(self.file_line_number),
+                                    file_line_number: None,
                                 });
                             }
                         }
@@ -814,7 +834,7 @@ impl Interpreter {
                         _ => Err(BasicError::Runtime {
                             message: format!("Unexpected result type from function '{}'", name),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         }),
                     }
                 } else {
@@ -837,7 +857,7 @@ impl Interpreter {
                                     return Err(BasicError::Runtime {
                                         message: format!("User-defined function '{}' expects number arguments", name),
                                         basic_line_number: Some(self.get_current_line().line_number),
-                                        file_line_number: Some(self.file_line_number),
+                                        file_line_number: None,
                                     });
                                 }
                             }
@@ -862,7 +882,7 @@ impl Interpreter {
                             Err(BasicError::Runtime {
                                 message: format!("Undefined user function '{}'", name),
                                 basic_line_number: Some(self.get_current_line().line_number),
-                                file_line_number: Some(self.file_line_number),
+                                file_line_number: None,
                             })
                         }
                     } else {
@@ -876,7 +896,7 @@ impl Interpreter {
                                 return Err(BasicError::Runtime {
                                     message: format!("Invalid argument for function '{}'", name),
                                     basic_line_number: Some(self.get_current_line().line_number),
-                                    file_line_number: Some(self.file_line_number),
+                                    file_line_number: None,
                                 });
                             }
                         }
@@ -889,7 +909,7 @@ impl Interpreter {
                             Err(BasicError::Runtime {
                                 message: format!("Unknown function '{}'", name),
                                 basic_line_number: Some(self.get_current_line().line_number),
-                                file_line_number: Some(self.file_line_number),
+                                file_line_number: None,
                             })
                         }
                     }
@@ -911,7 +931,7 @@ impl Interpreter {
                                     return Err(BasicError::Runtime {
                                         message: "Division by zero".to_string(),
                                         basic_line_number: Some(self.get_current_line().line_number),
-                                        file_line_number: Some(self.file_line_number),
+                                        file_line_number: None,
                                     });
                                 }
                                 a / b
@@ -928,7 +948,7 @@ impl Interpreter {
                             _ => return Err(BasicError::Runtime {
                                 message: format!("Unknown binary operator: {}", op),
                                 basic_line_number: Some(self.get_current_line().line_number),
-                                file_line_number: Some(self.file_line_number),
+                                file_line_number: None,
                             }),
                         };
                         Ok(SymbolValue::Number(result))
@@ -941,7 +961,7 @@ impl Interpreter {
                             _ => Err(BasicError::Runtime {
                                 message: format!("Invalid operator '{}' for strings", op),
                                 basic_line_number: Some(self.get_current_line().line_number),
-                                file_line_number: Some(self.file_line_number),
+                                file_line_number: None,
                             }),
                         };
                         result
@@ -949,7 +969,7 @@ impl Interpreter {
                     _ => Err(BasicError::Runtime {
                         message: format!("Type mismatch for operator '{}'", op),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     }),
                 }
             }
@@ -965,7 +985,7 @@ impl Interpreter {
                             _ => return Err(BasicError::Runtime {
                                 message: format!("Unknown unary operator: {}", op),
                                 basic_line_number: Some(self.get_current_line().line_number),
-                                file_line_number: Some(self.file_line_number),
+                                file_line_number: None,
                             }),
                         };
                         Ok(SymbolValue::Number(result))
@@ -973,7 +993,7 @@ impl Interpreter {
                     _ => Err(BasicError::Runtime {
                         message: format!("Invalid operand type for unary operator '{}'", op),
                         basic_line_number: Some(self.get_current_line().line_number),
-                        file_line_number: Some(self.file_line_number),
+                        file_line_number: None,
                     }),
                 }
             }
@@ -991,7 +1011,7 @@ impl Interpreter {
             Err(BasicError::Runtime {
                 message: format!("Undefined variable: {}", name),
                 basic_line_number: Some(self.get_current_line().line_number),
-                file_line_number: Some(self.file_line_number),
+                file_line_number: None,
             })
         }
     }
@@ -1019,7 +1039,7 @@ impl Interpreter {
             Err(BasicError::Runtime {
                 message: format!("Line number {} not found", line_number),
                 basic_line_number: Some(line_number),
-                file_line_number: Some(self.file_line_number),
+                file_line_number: None,
             })
         }
     }
@@ -1046,7 +1066,7 @@ impl Interpreter {
                         _ => Err(BasicError::Runtime {
                             message: "Array index must be a non-negative integer".to_string(),
                             basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: Some(self.file_line_number),
+                            file_line_number: None,
                         })
                     })
                     .collect();
@@ -1057,7 +1077,7 @@ impl Interpreter {
             _ => Err(BasicError::Runtime {
                 message: "Invalid lvalue in READ statement".to_string(),
                 basic_line_number: Some(self.get_current_line().line_number),
-                file_line_number: Some(self.file_line_number),
+                file_line_number: None,
             })
         }
     }
