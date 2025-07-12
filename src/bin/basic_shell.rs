@@ -9,6 +9,7 @@ use basic_rs::basic_lexer::Lexer;
 use basic_rs::basic_parser::Parser;
 use basic_rs::basic_interpreter::Interpreter;
 use basic_rs::basic_types::{BasicError, RunStatus, SymbolType, Program};
+use basic_rs::basic_reports::{print_coverage_report, generate_html_coverage_report};
 
 /// Basic shell for interactive BASIC program development and debugging
 pub struct BasicShell {
@@ -17,7 +18,7 @@ pub struct BasicShell {
     load_status: bool,
     breakpoints: Vec<(usize, usize)>, // (line_number, offset)
     data_breakpoints: Vec<String>,
-    coverage: Option<()>, // TODO: Implement coverage tracking
+    coverage_enabled: bool,
 }
 
 impl BasicShell {
@@ -28,7 +29,7 @@ impl BasicShell {
             load_status: false,
             breakpoints: Vec::new(),
             data_breakpoints: Vec::new(),
-            coverage: None,
+            coverage_enabled: false,
         };
         
         if let Some(ref file) = program_file {
@@ -161,14 +162,34 @@ impl BasicShell {
     }
     
     /// Coverage command
-    fn cmd_coverage(&self, _args: Option<&str>) {
-        if self.interpreter.is_none() {
+    fn cmd_coverage(&self, args: Option<&str>) {
+        if let Some(ref interpreter) = self.interpreter {
+            if let Some(coverage) = interpreter.get_coverage() {
+                let program = interpreter.get_program();
+                
+                match args {
+                    Some("html") => {
+                        if let Err(e) = generate_html_coverage_report(coverage, program, "coverage_report.html") {
+                            println!("Error generating HTML report: {}", e);
+                        }
+                    }
+                    Some("lines") => {
+                        print_coverage_report(coverage, program, true);
+                    }
+                    None => {
+                        print_coverage_report(coverage, program, false);
+                    }
+                    _ => {
+                        self.usage("coverage");
+                    }
+                }
+            } else {
+                println!("Coverage was not enabled for the last/current run.");
+                println!("Use 'run coverage' to enable coverage tracking.");
+            }
+        } else {
             println!("No program loaded.");
-            return;
         }
-        
-        // TODO: Implement coverage reporting
-        println!("Coverage reporting not yet implemented in Rust version");
     }
     
     /// Print current line
@@ -284,7 +305,7 @@ impl BasicShell {
         self.interpreter = None;
         self.breakpoints.clear();
         self.data_breakpoints.clear();
-        self.coverage = None;
+        self.coverage_enabled = false;
         self.load_status = false;
         self.program_file = None;
         println!("Program and all state cleared");
@@ -479,11 +500,21 @@ impl BasicShell {
     
     /// Run command
     fn cmd_run(&mut self, args: Option<&str>) {
-        if self.interpreter.is_some() {
-            let _coverage = args == Some("coverage");
+        if let Some(ref interpreter) = self.interpreter {
+            let enable_coverage = args == Some("coverage");
             
-            // For now, just run the program without recreating the interpreter
-            // TODO: Create fresh interpreter with same program when needed
+            // Create fresh interpreter with same program
+            let program = interpreter.get_program().clone();
+            let mut new_interpreter = Interpreter::new(program);
+            
+            if enable_coverage {
+                new_interpreter.enable_coverage();
+                self.coverage_enabled = true;
+            } else {
+                self.coverage_enabled = false;
+            }
+            
+            self.interpreter = Some(new_interpreter);
             self.cmd_continue(None);
         } else {
             println!("No program has been loaded yet.");

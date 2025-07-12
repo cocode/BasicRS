@@ -3,6 +3,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, Write};
 use crate::basic_symbols::SymbolTable;
+use crate::basic_reports::CoverageData;
 
 use crate::basic_types::{
     Program, ProgramLine, Statement, Expression, BasicError,
@@ -49,7 +50,7 @@ pub struct Interpreter {
     data_line_map: HashMap<usize, usize>, // Maps line numbers to data positions
     run_status: RunStatus,
     trace_file: Option<File>,
-    coverage: Option<HashMap<usize, usize>>,
+    coverage: Option<CoverageData>,
     breakpoints: HashSet<(usize, usize)>,
     data_breakpoints: HashSet<String>,
     line_number_map: HashMap<usize, usize>, // Maps line numbers to program indices
@@ -237,7 +238,7 @@ impl Interpreter {
     }
 
     pub fn enable_coverage(&mut self) {
-        self.coverage = Some(HashMap::new());
+        self.coverage = Some(CoverageData::new());
     }
 
     pub fn add_breakpoint(&mut self, line: usize, offset: usize) {
@@ -248,9 +249,7 @@ impl Interpreter {
         self.data_breakpoints.insert(var);
     }
 
-    pub fn get_coverage(&self) -> Option<&HashMap<usize, usize>> {
-        self.coverage.as_ref()
-    }
+
 
     pub fn get_symbol_value(&self, name: &str) -> Option<&SymbolValue> {
         // First try to find scalar variable with original name
@@ -341,8 +340,8 @@ impl Interpreter {
             // Update coverage before executing
             if let Some(ref mut cov) = self.coverage {
                 cov.entry(current_line)
-                    .and_modify(|count| *count += 1)
-                    .or_insert(1);
+                    .or_insert_with(HashSet::new)
+                    .insert(current_offset);
             }
             if false {
                 println!("Symbol Table at line {} at {}", current_line, current_offset);
@@ -1105,6 +1104,10 @@ impl Interpreter {
 
     pub fn get_current_line(&self) -> &ProgramLine {
         &self.program.lines[self.location.index]
+    }
+
+    pub fn get_coverage(&self) -> Option<&CoverageData> {
+        self.coverage.as_ref()
     }
 
     fn get_current_stmt(&self) -> &Statement {
