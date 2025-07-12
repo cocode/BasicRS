@@ -1020,7 +1020,8 @@ impl Interpreter {
     }
 
     fn put_symbol(&mut self, name: String, value: SymbolValue) {
-        // Always put in current scope
+        // In BASIC, scalar variables and arrays with the same name are separate entities
+        // N and N() are different - this is legitimate BASIC behavior
         let name_copy=name.clone();
         self.symbols.put_symbol(name, value);
         if self.data_breakpoints.contains(&name_copy) {
@@ -1238,23 +1239,23 @@ mod tests {
         let mut interpreter = Interpreter::new(program);
         interpreter.run()?;
 
-        // Test 2D numeric array
-        if let SymbolValue::Array2DNumber(arr) = interpreter.get_symbol("A")? {
+        // Test 2D numeric array (arrays stored with [] suffix)
+        if let SymbolValue::Array2DNumber(arr) = interpreter.get_symbol("A[]")? {
             assert_eq!(arr.len(), 2);               // rows
             assert_eq!(arr[0].len(), 5);            // columns
         } else {
             panic!("Expected 2D numeric array 'A'");
         }
 
-        // Test 1D numeric array
-        if let SymbolValue::Array1DNumber(arr) = interpreter.get_symbol("B")? {
+        // Test 1D numeric array (arrays stored with [] suffix)
+        if let SymbolValue::Array1DNumber(arr) = interpreter.get_symbol("B[]")? {
             assert_eq!(arr.len(), 4);
         } else {
             panic!("Expected 1D numeric array 'B'");
         }
 
-        // Test 1D string array
-        if let SymbolValue::Array1DString(arr) = interpreter.get_symbol("C$")? {
+        // Test 1D string array (arrays stored with [] suffix)
+        if let SymbolValue::Array1DString(arr) = interpreter.get_symbol("C$[]")? {
             assert_eq!(arr.len(), 3);
         } else {
             panic!("Expected 1D string array 'C$'");

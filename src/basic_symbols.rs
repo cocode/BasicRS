@@ -16,7 +16,9 @@ pub fn adjust(coord: usize) -> usize {
 impl SymbolTable {
 
     pub fn get_array_element(&self, name: &str, indices: &[usize]) -> Result<SymbolValue, BasicError> {
-        let symbol = self.get_symbol(name).ok_or(BasicError::Runtime {
+        // Arrays are stored with [] suffix to separate from scalar variables
+        let array_key = format!("{}[]", name);
+        let symbol = self.get_symbol(&array_key).ok_or(BasicError::Runtime {
             message: format!("Array '{}' not found", name),
             basic_line_number: None,
             file_line_number: None,
@@ -111,7 +113,9 @@ impl SymbolTable {
     }
 
     pub fn set_array_element(&mut self, name: &str, indices: &[usize], value: SymbolValue) -> Result<(), BasicError> {
-        let symbol = self.symbols.get_mut(name).ok_or(BasicError::Runtime {
+        // Arrays are stored with [] suffix to separate from scalar variables
+        let array_key = format!("{}[]", name);
+        let symbol = self.symbols.get_mut(&array_key).ok_or(BasicError::Runtime {
             message: format!("Array '{}' not found", name),
             basic_line_number: None,
             file_line_number: None,
@@ -241,7 +245,9 @@ impl SymbolTable {
     }
 
     pub fn create_array(&mut self, name: String, dimensions: Vec<usize>) -> Result<(), BasicError> {
-        if self.symbols.contains_key(&name) {
+        // Arrays are stored with [] suffix to separate from scalar variables
+        let array_key = format!("{}[]", name);
+        if self.symbols.contains_key(&array_key) {
             return Err(BasicError::Runtime {
                 message: format!("Array '{}' already declared", name),
                 basic_line_number: None,
@@ -259,7 +265,7 @@ impl SymbolTable {
                 } else {
                     SymbolValue::Array1DNumber(vec![0.0; size])
                 };
-                self.symbols.insert(name, array);
+                self.symbols.insert(array_key, array);
                 Ok(())
             }
 
@@ -271,7 +277,7 @@ impl SymbolTable {
                 } else {
                     SymbolValue::Array2DNumber(vec![vec![0.0; cols]; rows])
                 };
-                self.symbols.insert(name, array);
+                self.symbols.insert(array_key, array);
                 Ok(())
             }
 
@@ -362,7 +368,7 @@ mod tests {
     fn test_create_array_1d_number() {
         let mut table = SymbolTable::new();
         table.create_array("A".to_string(), vec![5]).unwrap();
-        let val = table.get_symbol("A").unwrap();
+        let val = table.get_symbol("A[]").unwrap(); // Arrays stored with [] suffix
         match val {
             SymbolValue::Array1DNumber(v) => assert_eq!(v.len(), 5),
             _ => panic!("Expected 1D number array"),
@@ -373,7 +379,7 @@ mod tests {
     fn test_create_array_2d_string() {
         let mut table = SymbolTable::new();
         table.create_array("S$".to_string(), vec![2, 3]).unwrap();
-        let val = table.get_symbol("S$").unwrap();
+        let val = table.get_symbol("S$[]").unwrap(); // Arrays stored with [] suffix
         match val {
             SymbolValue::Array2DString(v) => {
                 assert_eq!(v.len(), 2);
