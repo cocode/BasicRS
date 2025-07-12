@@ -173,19 +173,61 @@ impl BasicShell {
     
     /// Print current line
     fn print_current(&self) {
-        if let Some(ref _interpreter) = self.interpreter {
-            // TODO: Get current line from interpreter
-            println!("Current line display not yet implemented");
+        if let Some(ref interpreter) = self.interpreter {
+            let current_line = interpreter.get_current_line();
+            println!("{}", current_line.source);
         } else {
             println!("No program has been loaded yet.");
         }
     }
     
     /// List command
-    fn cmd_list(&self, _args: Option<&str>) {
-        if let Some(ref _interpreter) = self.interpreter {
-            // TODO: Implement program listing
-            println!("Program listing not yet implemented");
+    fn cmd_list(&self, args: Option<&str>) {
+        if let Some(ref interpreter) = self.interpreter {
+            let program = interpreter.get_program();
+            let current_location = interpreter.get_current_location();
+            
+            let mut count = 10;
+            let mut start_index = current_location.index;
+            
+            // Parse arguments: list [start_line] [count]
+            if let Some(args) = args {
+                let parts: Vec<&str> = args.split_whitespace().collect();
+                if !parts.is_empty() {
+                    if let Ok(line_num) = parts[0].parse::<usize>() {
+                        // Find the index for this line number
+                        if let Some(found_index) = program.lines.iter().position(|line| line.line_number == line_num) {
+                            start_index = found_index;
+                        } else {
+                            println!("Invalid line number {}", line_num);
+                            self.usage("list");
+                            return;
+                        }
+                    } else {
+                        println!("Invalid line number {}", parts[0]);
+                        self.usage("list");
+                        return;
+                    }
+                }
+                
+                if parts.len() > 1 {
+                    if let Ok(c) = parts[1].parse::<usize>() {
+                        count = c;
+                    } else {
+                        println!("Invalid count {}", parts[1]);
+                        self.usage("list");
+                        return;
+                    }
+                }
+            }
+            
+            // List the lines
+            let end_index = std::cmp::min(start_index + count, program.lines.len());
+            for i in start_index..end_index {
+                let line = &program.lines[i];
+                let marker = if i == current_location.index { "*" } else { " " };
+                println!("{}{:5} {}", marker, line.line_number, line.source);
+            }
         } else {
             println!("No program has been loaded yet.");
         }
@@ -193,9 +235,19 @@ impl BasicShell {
     
     /// For stack command
     fn cmd_for_stack(&self, _args: Option<&str>) {
-        if let Some(ref _interpreter) = self.interpreter {
-            // TODO: Implement for stack display
-            println!("For/next stack display not yet implemented");
+        if let Some(ref interpreter) = self.interpreter {
+            let for_stack = interpreter.get_for_stack();
+            println!("For/next stack:");
+            if for_stack.is_empty() {
+                println!("\t<empty>");
+            } else {
+                for for_record in for_stack {
+                    println!("\tFOR {} = <start> TO {} STEP {}", 
+                             for_record.var, 
+                             for_record.stop, 
+                             for_record.step);
+                }
+            }
         } else {
             println!("No program has been loaded yet.");
         }
@@ -203,9 +255,20 @@ impl BasicShell {
     
     /// Gosub stack command
     fn cmd_gosub_stack(&self, _args: Option<&str>) {
-        if let Some(ref _interpreter) = self.interpreter {
-            // TODO: Implement gosub stack display
-            println!("GOSUB stack display not yet implemented");
+        if let Some(ref interpreter) = self.interpreter {
+            let gosub_stack = interpreter.get_gosub_stack();
+            println!("GOSUB stack:");
+            if gosub_stack.is_empty() {
+                println!("\t<empty>");
+            } else {
+                let program = interpreter.get_program();
+                for location in gosub_stack {
+                    if location.index < program.lines.len() {
+                        let line = &program.lines[location.index];
+                        println!("\tLine: {}: Clause: {}", line.line_number, location.offset);
+                    }
+                }
+            }
         } else {
             println!("No program has been loaded yet.");
         }
@@ -229,28 +292,31 @@ impl BasicShell {
     
     /// Save command
     fn cmd_save(&self, args: Option<&str>) {
-        if self.interpreter.is_none() {
-            println!("No program has been loaded yet.");
-            return;
-        }
-        
-        if let Some(filename) = args {
-            let filename = filename.trim();
-            let filename = if !filename.ends_with(".bas") {
-                format!("{}.bas", filename)
+        if let Some(ref interpreter) = self.interpreter {
+            if let Some(filename) = args {
+                let filename = filename.trim();
+                let filename = if !filename.ends_with(".bas") {
+                    format!("{}.bas", filename)
+                } else {
+                    filename.to_string()
+                };
+                
+                if Path::new(&filename).exists() {
+                    println!("No overwriting of files supported now. Still debugging. Save it to new name.");
+                    return;
+                }
+                
+                // Save the program
+                let program = interpreter.get_program();
+                match fs::write(&filename, program.to_string()) {
+                    Ok(()) => println!("Program saved as {}", filename),
+                    Err(e) => println!("Error saving file {}: {}", filename, e),
+                }
             } else {
-                filename.to_string()
-            };
-            
-            if Path::new(&filename).exists() {
-                println!("No overwriting of files supported now. Still debugging. Save it to new name.");
-                return;
+                println!("Save needs a file name.");
             }
-            
-            // TODO: Implement program saving
-            println!("Program saving not yet implemented");
         } else {
-            println!("Save needs a file name.");
+            println!("No program has been loaded yet.");
         }
     }
     
@@ -328,13 +394,27 @@ impl BasicShell {
     
     /// Print command (? command)
     fn cmd_print(&self, args: Option<&str>) {
-        if args.is_none() {
+        if let Some(expr_str) = args {
+            if let Some(ref _interpreter) = self.interpreter {
+                // For now, just attempt to evaluate simple numeric expressions
+                // This is a simplified implementation - a full implementation would
+                // need to parse and evaluate BASIC expressions properly
+                println!("Expression evaluation: {} (not fully implemented)", expr_str);
+                println!("Use the 'sym' command to inspect variables instead.");
+            } else {
+                // Try to evaluate simple constants even without a program
+                if let Ok(value) = expr_str.trim().parse::<f64>() {
+                    println!(" {} ", value);
+                } else if expr_str.trim().starts_with('"') && expr_str.trim().ends_with('"') {
+                    let s = &expr_str.trim()[1..expr_str.trim().len()-1];
+                    println!("{}", s);
+                } else {
+                    println!("No program loaded. Can only evaluate simple constants.");
+                }
+            }
+        } else {
             self.usage("?");
-            return;
         }
-        
-        // TODO: Implement expression evaluation
-        println!("Expression evaluation not yet implemented");
     }
     
     /// Next command
@@ -584,9 +664,9 @@ impl BasicShell {
     
     /// Stop command
     fn cmd_stop(&mut self, _args: Option<&str>) {
-        if let Some(ref mut _interpreter) = self.interpreter {
-            // TODO: Implement program restart
-            println!("Program restart not yet implemented");
+        if let Some(ref mut interpreter) = self.interpreter {
+            interpreter.restart();
+            println!("Program execution reset to beginning");
         } else {
             println!("No program has been loaded yet.");
         }
@@ -594,8 +674,24 @@ impl BasicShell {
     
     /// Handle BASIC line entry (e.g., "100 PRINT A")
     fn handle_line_entry(&mut self, line_input: &str) {
-        // TODO: Implement BASIC line entry
-        println!("BASIC line entry not yet implemented: {}", line_input);
+        // Parse line number and content
+        let parts: Vec<&str> = line_input.splitn(2, ' ').collect();
+        if let Ok(line_number) = parts[0].parse::<usize>() {
+            if line_number < 1 || line_number > 65536 {
+                println!("Line number {} out of range (1-65536)", line_number);
+                return;
+            }
+            
+            if parts.len() == 1 || parts[1].trim().is_empty() {
+                // Delete line
+                println!("Line deletion not yet implemented for line {}", line_number);
+            } else {
+                // Insert/replace line
+                println!("Line entry not yet implemented: {}", line_input);
+            }
+        } else {
+            println!("Invalid line number");
+        }
     }
     
     /// Find command by prefix
