@@ -253,7 +253,14 @@ impl Interpreter {
     }
 
     pub fn get_symbol_value(&self, name: &str) -> Option<&SymbolValue> {
-        self.symbols.get_symbol(name)
+        // First try to find scalar variable with original name
+        if let Some(value) = self.symbols.get_symbol(name) {
+            Some(value)
+        } else {
+            // If not found, try to find array with [] suffix
+            let array_key = format!("{}[]", name);
+            self.symbols.get_symbol(&array_key)
+        }
     }
 
     pub fn set_symbol_value(&mut self, name: String, value: SymbolValue) {
@@ -1005,14 +1012,20 @@ impl Interpreter {
         // Try current scope first, then parent scopes
         if let Some(value) = self.symbols.get_symbol(name) {
             Ok(value.clone())
-        } else if let Some(value) = self.internal_symbols.get_symbol(name) {
-            Ok(value.clone())
         } else {
-            Err(BasicError::Runtime {
-                message: format!("Undefined variable: {}", name),
-                basic_line_number: Some(self.get_current_line().line_number),
-                file_line_number: None,
-            })
+            // Try array with [] suffix
+            let array_key = format!("{}[]", name);
+            if let Some(value) = self.symbols.get_symbol(&array_key) {
+                Ok(value.clone())
+            } else if let Some(value) = self.internal_symbols.get_symbol(name) {
+                Ok(value.clone())
+            } else {
+                Err(BasicError::Runtime {
+                    message: format!("Undefined variable: {}", name),
+                    basic_line_number: Some(self.get_current_line().line_number),
+                    file_line_number: None,
+                })
+            }
         }
     }
     fn get_symbol_table(&self) -> &SymbolTable {
