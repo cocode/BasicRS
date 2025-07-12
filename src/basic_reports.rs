@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use serde::{Deserialize, Serialize};
 
 use crate::basic_types::Program;
 
@@ -453,4 +454,28 @@ fn html_escape(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
+}
+
+/// Save coverage data to a JSON file
+pub fn save_coverage_to_file(coverage: &CoverageData, filename: &str) -> std::io::Result<()> {
+    let json = serde_json::to_string_pretty(coverage)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    fs::write(filename, json)
+}
+
+/// Load coverage data from a JSON file
+pub fn load_coverage_from_file(filename: &str) -> std::io::Result<CoverageData> {
+    let content = fs::read_to_string(filename)?;
+    serde_json::from_str(&content)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+}
+
+/// Merge two coverage datasets, combining statement sets for each line
+pub fn merge_coverage(mut existing: CoverageData, new: CoverageData) -> CoverageData {
+    for (line_num, new_stmts) in new {
+        existing.entry(line_num)
+            .or_insert_with(std::collections::HashSet::new)
+            .extend(new_stmts);
+    }
+    existing
 } 
