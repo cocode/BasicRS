@@ -1109,6 +1109,52 @@ impl Interpreter {
     pub fn get_coverage(&self) -> Option<&CoverageData> {
         self.coverage.as_ref()
     }
+    
+    /// Execute a single statement (for single-step debugging)
+    pub fn step(&mut self) -> Result<(), BasicError> {
+        // Allow stepping when at a breakpoint or normally running
+        if self.run_status != RunStatus::Run && self.run_status != RunStatus::BreakCode && self.run_status != RunStatus::BreakData {
+            return Ok(());
+        }
+        
+        // If we're at a breakpoint, reset to running state for this step
+        if self.run_status == RunStatus::BreakCode || self.run_status == RunStatus::BreakData {
+            self.run_status = RunStatus::Run;
+        }
+        
+        let current_line = self.get_current_line().line_number;
+        let current_offset = self.location.offset;
+        
+        // Get current statement before any trace/coverage operations
+        let current_stmt = self.get_current_stmt().clone();
+
+        // Write trace
+        self.do_trace(&current_stmt);
+
+        // Update coverage before executing
+        if let Some(ref mut cov) = self.coverage {
+            cov.entry(current_line)
+                .or_insert_with(HashSet::new)
+                .insert(current_offset);
+        }
+        
+        // Execute statement
+        match self.execute_statement(&current_stmt) {
+            Ok(()) => {
+                self.advance_location();
+                Ok(())
+            }
+            Err(err) => {
+                self.run_status = match err {
+                    BasicError::Syntax { .. } => RunStatus::EndErrorSyntax,
+                    BasicError::Runtime { .. } => RunStatus::EndErrorRuntime,
+                    BasicError::Internal { .. } => RunStatus::EndErrorInternal,
+                    BasicError::Type { .. } => RunStatus::EndErrorType,
+                };
+                Err(err)
+            }
+        }
+    }
 
     fn get_current_stmt(&self) -> &Statement {
         &self.get_current_line().statements[self.location.offset]

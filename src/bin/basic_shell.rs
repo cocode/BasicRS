@@ -211,7 +211,11 @@ impl BasicShell {
     fn print_current(&self) {
         if let Some(ref interpreter) = self.interpreter {
             let current_line = interpreter.get_current_line();
-            println!("{}", current_line.source);
+            let current_location = interpreter.get_current_location();
+            println!("{}: {}", current_line.line_number, current_line.source);
+            if current_location.offset > 0 {
+                println!("  (Statement {} of {})", current_location.offset + 1, current_line.statements.len());
+            }
         } else {
             println!("No program has been loaded yet.");
         }
@@ -455,10 +459,55 @@ impl BasicShell {
     
     /// Next command
     fn cmd_next(&mut self, _args: Option<&str>) {
-        if let Some(ref mut _interpreter) = self.interpreter {
-            // TODO: Check if program is running
-            self.print_current();
-            self.cmd_continue(Some("step"));
+        if let Some(ref mut interpreter) = self.interpreter {
+            // Store the current location before stepping
+            let before_location = *interpreter.get_current_location();
+            let program = interpreter.get_program().clone();
+            
+            match interpreter.step() {
+                Ok(()) => {
+                    let status = interpreter.get_run_status();
+                    match status {
+                        RunStatus::Run => {
+                            // Show what we just executed
+                            if before_location.index < program.lines.len() {
+                                let executed_line = &program.lines[before_location.index];
+                                println!("Executed: {}: {}", executed_line.line_number, executed_line.source);
+                                if before_location.offset > 0 {
+                                    println!("  (Statement {} of {})", before_location.offset + 1, executed_line.statements.len());
+                                }
+                            }
+                            
+                            // Show where we are now
+                            println!("Next: ");
+                            self.print_current();
+                        }
+                        RunStatus::EndNormal => println!("Program completed successfully"),
+                        RunStatus::EndStop => println!("Program stopped"),
+                        RunStatus::EndOfProgram => println!("Program reached end"),
+                        _ => println!("Program completed with status: {:?}", status),
+                    }
+                }
+                Err(e) => {
+                    match e {
+                        BasicError::Runtime { message, basic_line_number, .. } => {
+                            if let Some(line_num) = basic_line_number {
+                                println!("Runtime Error in line {}: {}", line_num, message);
+                            } else {
+                                println!("Runtime Error: {}", message);
+                            }
+                        }
+                        BasicError::Syntax { message, basic_line_number, .. } => {
+                            if let Some(line_num) = basic_line_number {
+                                println!("Syntax Error in line {}: {}", line_num, message);
+                            } else {
+                                println!("Syntax Error: {}", message);
+                            }
+                        }
+                        _ => println!("Error: {:?}", e),
+                    }
+                }
+            }
         } else {
             println!("No program has been loaded yet.");
         }
