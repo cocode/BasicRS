@@ -561,7 +561,7 @@ impl fmt::Display for ExpressionType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExpressionType::Number(n) => write!(f, "{}", n),
-            ExpressionType::String(s) => write!(f, "{}", s),
+            ExpressionType::String(s) => write!(f, "\"{}\"", s),
             ExpressionType::Variable(name) => write!(f, "{}", name),
 
             ExpressionType::Array { name, indices } => {
