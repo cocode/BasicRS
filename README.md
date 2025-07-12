@@ -23,7 +23,7 @@ OR
 target/debug/basic_rs superstartrek.bas
 
 ## Shell
-If you want to use the shell for BASICk which is the command line "IDE" - sort of.
+If you want to use the shell for BASIC which is the command line "IDE" - sort of.
 
 It provides breakpoints, single stepping, code coverage, and more.  
 
