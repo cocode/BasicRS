@@ -8,7 +8,7 @@ use std::time::Instant;
 use basic_rs::basic_lexer::Lexer;
 use basic_rs::basic_parser::Parser;
 use basic_rs::basic_interpreter::Interpreter;
-use basic_rs::basic_types::{BasicError, RunStatus, SymbolType};
+use basic_rs::basic_types::{BasicError, RunStatus, SymbolType, Program};
 
 /// Basic shell for interactive BASIC program development and debugging
 pub struct BasicShell {
@@ -684,10 +684,74 @@ impl BasicShell {
             
             if parts.len() == 1 || parts[1].trim().is_empty() {
                 // Delete line
-                println!("Line deletion not yet implemented for line {}", line_number);
+                if let Some(ref mut interpreter) = self.interpreter {
+                    let mut program = interpreter.get_program().clone();
+                    program.remove_line(line_number);
+                    self.interpreter = Some(Interpreter::new(program));
+                    println!("Line {} deleted", line_number);
+                } else {
+                    println!("No program loaded");
+                }
             } else {
                 // Insert/replace line
-                println!("Line entry not yet implemented: {}", line_input);
+                if let Some(ref mut interpreter) = self.interpreter {
+                    let line_content = parts[1].trim();
+                    let full_line = format!("{} {}", line_number, line_content);
+                    
+                    // Parse the new line
+                    let mut lexer = Lexer::new(&full_line);
+                    match lexer.tokenize() {
+                        Ok(tokens) => {
+                            let mut parser = Parser::new(tokens);
+                            match parser.parse() {
+                                                                 Ok(temp_program) => {
+                                     if let Some(new_line) = temp_program.lines.first() {
+                                         let mut program = interpreter.get_program().clone();
+                                         program.add_line(line_number, line_content.to_string(), new_line.statements.clone());
+                                         self.interpreter = Some(Interpreter::new(program));
+                                         println!("Line {} updated", line_number);
+                                     } else {
+                                         println!("Error: Could not parse line");
+                                     }
+                                 }
+                                Err(e) => {
+                                    println!("Parse error: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("Lexer error: {}", e);
+                        }
+                    }
+                                 } else {
+                     // No program loaded yet - create a new one
+                     let line_content = parts[1].trim();
+                     let full_line = format!("{} {}", line_number, line_content);
+                     let mut lexer = Lexer::new(&full_line);
+                     match lexer.tokenize() {
+                         Ok(tokens) => {
+                             let mut parser = Parser::new(tokens);
+                             match parser.parse() {
+                                 Ok(temp_program) => {
+                                     if let Some(new_line) = temp_program.lines.first() {
+                                         let mut program = Program::new();
+                                         program.add_line(line_number, line_content.to_string(), new_line.statements.clone());
+                                         self.interpreter = Some(Interpreter::new(program));
+                                         println!("Line {} added to new program", line_number);
+                                     } else {
+                                         println!("Error: Could not parse line");
+                                     }
+                                 }
+                                 Err(e) => {
+                                     println!("Parse error: {}", e);
+                                 }
+                             }
+                         }
+                         Err(e) => {
+                             println!("Lexer error: {}", e);
+                         }
+                     }
+                 }
             }
         } else {
             println!("Invalid line number");
