@@ -18,6 +18,17 @@ I have achieved that goal.
 
 cargo run -- superstartrek.bas
 
-OR 
+OR
 
 target/debug/basic_rs superstartrek.bas
+
+## Shell
+If you want to use the shell for BASICk which is the command line "IDE" - sort of.
+
+It provides breakpoints, single stepping, code coverage, and more.  
+
+./target/debug/basic_shell superstartrek.bas
+
+or just
+
+./target/debug/basic_shell
