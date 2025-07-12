@@ -510,13 +510,26 @@ impl BasicShell {
     
     /// Format command
     fn cmd_format(&mut self, _args: Option<&str>) {
-        if self.interpreter.is_none() {
+        if let Some(ref interpreter) = self.interpreter {
+            let program = interpreter.get_program();
+            
+            // Display formatted lines using canonical form from statements
+            for line in &program.lines {
+                // Use the Display implementation of ProgramLine to get canonical form
+                println!("{:5} {}", line.line_number, {
+                    let mut stmt_str = String::new();
+                    for (i, stmt) in line.statements.iter().enumerate() {
+                        stmt_str.push_str(&format!("{}", stmt));
+                        if i < line.statements.len() - 1 {
+                            stmt_str.push_str(" : ");
+                        }
+                    }
+                    stmt_str
+                });
+            }
+        } else {
             println!("No program has been loaded yet.");
-            return;
         }
-        
-        // TODO: Implement program formatting
-        println!("Program formatting not yet implemented");
     }
     
     /// Renumber command
