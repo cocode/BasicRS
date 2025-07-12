@@ -364,9 +364,14 @@ impl Interpreter {
                     ExpressionType::Array { name, indices } => {
                         let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
                             .map(|expr| match self.evaluate_expression(expr)? {
-                                SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                                SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
+                                SymbolValue::Number(n) => Err(BasicError::Runtime {
+                                    message: "Array index must be non-negative".to_string(),
+                                    basic_line_number: Some(self.get_current_line().line_number),
+                                    file_line_number: None,
+                                }),
                                 _ => Err(BasicError::Runtime {
-                                    message: "Array index must be a non-negative integer".to_string(),
+                                    message: "Array index must be a number".to_string(),
                                     basic_line_number: Some(self.get_current_line().line_number),
                                     file_line_number: None,
                                 })
@@ -690,9 +695,14 @@ impl Interpreter {
                         ExpressionType::Array { name, indices } => {
                             let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
                                 .map(|expr| match self.evaluate_expression(expr)? {
-                                    SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                                    SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
+                                    SymbolValue::Number(n) => Err(BasicError::Runtime {
+                                        message: "Array index must be non-negative".to_string(),
+                                        basic_line_number: Some(self.get_current_line().line_number),
+                                        file_line_number: None,
+                                    }),
                                     _ => Err(BasicError::Runtime {
-                                        message: "Array index must be a non-negative integer".to_string(),
+                                        message: "Array index must be a number".to_string(),
                                         basic_line_number: Some(self.get_current_line().line_number),
                                         file_line_number: None,
                                     })
@@ -784,9 +794,14 @@ impl Interpreter {
             ExpressionType::Array { name, indices } => {
                 let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
                     .map(|expr| match self.evaluate_expression(expr)? {
-                        SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                        SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
+                        SymbolValue::Number(n) => Err(BasicError::Runtime {
+                            message: "Array index must be non-negative".to_string(),
+                            basic_line_number: Some(self.get_current_line().line_number),
+                            file_line_number: None,
+                        }),
                         _ => Err(BasicError::Runtime {
-                            message: "Array index must be a non-negative integer".to_string(),
+                            message: "Array index must be a number".to_string(),
                             basic_line_number: Some(self.get_current_line().line_number),
                             file_line_number: None,
                         })
@@ -1076,9 +1091,14 @@ impl Interpreter {
             ExpressionType::Array { name, indices } => {
                 let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
                     .map(|expr| match self.evaluate_expression(expr)? {
-                        SymbolValue::Number(n) if n >= 0.0 && n.fract() == 0.0 => Ok(n as usize),
+                        SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
+                        SymbolValue::Number(n) => Err(BasicError::Runtime {
+                            message: "Array index must be non-negative".to_string(),
+                            basic_line_number: Some(self.get_current_line().line_number),
+                            file_line_number: None,
+                        }),
                         _ => Err(BasicError::Runtime {
-                            message: "Array index must be a non-negative integer".to_string(),
+                            message: "Array index must be a number".to_string(),
                             basic_line_number: Some(self.get_current_line().line_number),
                             file_line_number: None,
                         })
