@@ -262,6 +262,36 @@ impl Interpreter {
             self.symbols.get_symbol(&array_key)
         }
     }
+    
+    pub fn get_all_symbols(&self) -> std::collections::HashMap<String, SymbolValue> {
+        self.symbols.dump()
+    }
+    
+    pub fn get_program(&self) -> &Program {
+        &self.program
+    }
+    
+    pub fn get_current_location(&self) -> &ControlLocation {
+        &self.location
+    }
+    
+    pub fn get_for_stack(&self) -> &Vec<ForRecord> {
+        &self.for_stack
+    }
+    
+    pub fn get_gosub_stack(&self) -> &Vec<ControlLocation> {
+        &self.gosub_stack
+    }
+    
+    pub fn restart(&mut self) {
+        self.location = ControlLocation { index: 0, offset: 0 };
+        self.run_status = RunStatus::Run;
+        self.for_stack.clear();
+        self.gosub_stack.clear();
+        self.cursor_position = 0;
+        // Reset symbols to initial state but keep the program
+        self.symbols = self.internal_symbols.get_nested_scope();
+    }
 
     pub fn set_symbol_value(&mut self, name: String, value: SymbolValue) {
         self.symbols.put_symbol(name, value);
@@ -1073,7 +1103,7 @@ impl Interpreter {
         }
     }
 
-    fn get_current_line(&self) -> &ProgramLine {
+    pub fn get_current_line(&self) -> &ProgramLine {
         &self.program.lines[self.location.index]
     }
 
