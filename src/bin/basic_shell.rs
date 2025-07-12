@@ -39,6 +39,19 @@ impl BasicShell {
         shell
     }
     
+    /// Transfer breakpoints from shell to interpreter
+    fn transfer_breakpoints_to_interpreter(&self, interpreter: &mut Interpreter) {
+        // Transfer breakpoints to the interpreter
+        for (line, offset) in &self.breakpoints {
+            interpreter.add_breakpoint(*line, *offset);
+        }
+        
+        // Transfer data breakpoints to the interpreter
+        for var in &self.data_breakpoints {
+            interpreter.add_data_breakpoint(var.clone());
+        }
+    }
+    
     /// Load a program from a string (used by tests)
     pub fn load_from_string(&mut self, source: &str) -> Result<(), BasicError> {
         let mut lexer = Lexer::new(source);
@@ -55,7 +68,9 @@ impl BasicShell {
             file_line_number: None,
         })?;
         
-        self.interpreter = Some(Interpreter::new(program));
+        let mut interpreter = Interpreter::new(program);
+        self.transfer_breakpoints_to_interpreter(&mut interpreter);
+        self.interpreter = Some(interpreter);
         self.load_status = true;
         Ok(())
     }
@@ -514,6 +529,9 @@ impl BasicShell {
                 self.coverage_enabled = false;
             }
             
+            // Transfer breakpoints to the new interpreter
+            self.transfer_breakpoints_to_interpreter(&mut new_interpreter);
+            
             self.interpreter = Some(new_interpreter);
             self.cmd_continue(None);
         } else {
@@ -731,7 +749,9 @@ impl BasicShell {
                 if let Some(ref mut interpreter) = self.interpreter {
                     let mut program = interpreter.get_program().clone();
                     program.remove_line(line_number);
-                    self.interpreter = Some(Interpreter::new(program));
+                    let mut new_interpreter = Interpreter::new(program);
+                    self.transfer_breakpoints_to_interpreter(&mut new_interpreter);
+                    self.interpreter = Some(new_interpreter);
                     println!("Line {} deleted", line_number);
                 } else {
                     println!("No program loaded");
@@ -752,7 +772,9 @@ impl BasicShell {
                                      if let Some(new_line) = temp_program.lines.first() {
                                          let mut program = interpreter.get_program().clone();
                                          program.add_line(line_number, line_content.to_string(), new_line.statements.clone());
-                                         self.interpreter = Some(Interpreter::new(program));
+                                         let mut new_interpreter = Interpreter::new(program);
+                                         self.transfer_breakpoints_to_interpreter(&mut new_interpreter);
+                                         self.interpreter = Some(new_interpreter);
                                          println!("Line {} updated", line_number);
                                      } else {
                                          println!("Error: Could not parse line");
@@ -780,7 +802,9 @@ impl BasicShell {
                                      if let Some(new_line) = temp_program.lines.first() {
                                          let mut program = Program::new();
                                          program.add_line(line_number, line_content.to_string(), new_line.statements.clone());
-                                         self.interpreter = Some(Interpreter::new(program));
+                                         let mut new_interpreter = Interpreter::new(program);
+                                         self.transfer_breakpoints_to_interpreter(&mut new_interpreter);
+                                         self.interpreter = Some(new_interpreter);
                                          println!("Line {} added to new program", line_number);
                                      } else {
                                          println!("Error: Could not parse line");
