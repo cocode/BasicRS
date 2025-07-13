@@ -1,4 +1,5 @@
 use crate::basic_types::{BasicError, IdentifierType, Token};
+use crate::basic_function_registry::FUNCTION_REGISTRY;
 use lazy_static::lazy_static;
 use rand::prelude::*;
 use rand::Rng;
@@ -145,287 +146,52 @@ impl BasicFunction {
     }
 }
 
+// Helper function to create BasicFunction from registry
+fn create_basic_function_from_registry(name: &str) -> Option<BasicFunction> {
+    if let Some(func_def) = FUNCTION_REGISTRY.get_function(name) {
+        let arg_types = func_def.arg_types.clone();
+        let implementation = func_def.implementation;
+        
+        match func_def.function_type {
+            crate::basic_function_registry::FunctionType::Number => {
+                Some(BasicFunction::Number {
+                    name: name.to_string(),
+                    lambda: implementation,
+                    arg_types,
+                })
+            }
+            crate::basic_function_registry::FunctionType::String => {
+                Some(BasicFunction::String {
+                    name: name.to_string(),
+                    lambda: implementation,
+                    arg_types,
+                })
+            }
+        }
+    } else {
+        None
+    }
+}
+
 lazy_static! {
     pub static ref FUNCTIONS: HashMap<String, BasicFunction> = {
         let mut m = HashMap::new();
+        
+        // Populate from registry
+        for func_name in FUNCTION_REGISTRY.get_function_names() {
+            if let Some(basic_func) = create_basic_function_from_registry(func_name) {
+                m.insert(func_name.to_string(), basic_func);
+            }
+        }
 
-        // Math functions
-        m.insert("ABS".to_string(), BasicFunction::Number {
-            name: "ABS".to_string(),
-            lambda: |args| {
-                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(value.abs().to_string())
-            },
-            arg_types: vec![ArgType::Number],
-        });
 
-        m.insert("SQR".to_string(), BasicFunction::Number {
-            name: "SQR".to_string(),
-            lambda: |args| {
-                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok((value * value).to_string())
-            },
-            arg_types: vec![ArgType::Number],
-        });
-
-        m.insert("RND".to_string(), BasicFunction::Number {
-            name: "RND".to_string(),
-            lambda: |args| {
-                use rand::Rng;
-                let mut rng = rand::thread_rng();
-                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                if value > 0.0 {
-                    Ok(rng.gen_range(0.0..1.0).to_string())
-                } else if value < 0.0 {
-                    Ok(value.to_string())
-                } else {
-                    Ok(rng.gen_range(0.0..1.0).to_string())
-                }
-            },
-            arg_types: vec![ArgType::Number],
-        });
-
-        // String functions
-        m.insert("LEN".to_string(), BasicFunction::Number {
-            name: "LEN".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                Ok(s.chars().count().to_string())
-            },
-            arg_types: vec![ArgType::String],
-        });
-
-        m.insert("LEFT$".to_string(), BasicFunction::String {
-            name: "LEFT$".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(s.chars().take(n).collect::<String>())
-            },
-            arg_types: vec![ArgType::String, ArgType::Number],
-        });
-
-        m.insert("RIGHT$".to_string(), BasicFunction::String {
-            name: "RIGHT$".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(s.chars().rev().take(n).collect::<String>().chars().rev().collect::<String>())
-            },
-            arg_types: vec![ArgType::String, ArgType::Number],
-        });
-
-        m.insert("MID$".to_string(), BasicFunction::String {
-            name: "MID$".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                let start: usize = args[1].parse::<usize>().unwrap().saturating_sub(1); // Already validated by validate_and_convert_args
-                let len: usize = args[2].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(s.chars().skip(start).take(len).collect::<String>())
-            },
-            arg_types: vec![ArgType::String, ArgType::Number, ArgType::Number],
-        });
-
-        m.insert("CHR$".to_string(), BasicFunction::String {
-            name: "CHR$".to_string(),
-            lambda: |args| {
-                let value: u8 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(char::from(value).to_string())
-            },
-            arg_types: vec![ArgType::Number],
-        });
-
-        m.insert("SGN".to_string(), BasicFunction::Number {
-            name: "SGN".to_string(),
-            lambda: |args| {
-                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(
-                    if value > 0.0 {
-                        "1"
-                    } else if value < 0.0 {
-                        "-1"
-                    } else {
-                        "0"
-                    }
-                    .to_string(),
-                )
-            },
-            arg_types: vec![ArgType::Number],
-        });
-
-        m.insert("ASC".to_string(), BasicFunction::Number {
-            name: "ASC".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                if s.is_empty() {
-                    return Err(BasicError::Syntax {
-                        message: "ASC() requires a non-empty string".to_string(),
-                        basic_line_number: None,
-                        file_line_number: None,
-                    });
-                }
-                let first_char = s.chars().next().unwrap();
-                Ok((first_char as u32 as f64).to_string())
-            },
-            arg_types: vec![ArgType::String],
-        });
-
-        m.insert("SPACE$".to_string(), BasicFunction::String {
-            name: "SPACE$".to_string(),
-            lambda: |args| {
-                let n: usize = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(" ".repeat(n))
-            },
-            arg_types: vec![ArgType::Number],
-        });
-
-        m.insert("STR$".to_string(), BasicFunction::String {
-            name: "STR$".to_string(),
-            lambda: |args| {
-                let n: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(n.to_string())
-            },
-            arg_types: vec![ArgType::Number],
-        });
 
         m
     };
 }
 
 pub fn get_function(name: &str) -> Option<BasicFunction> {
-    match name {
-        "ABS" => Some(BasicFunction::Number {
-            name: "ABS".to_string(),
-            lambda: |args| {
-                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(value.abs().to_string())
-            },
-            arg_types: vec![ArgType::Number],
-        }),
-        "ASC" => Some(BasicFunction::Number {
-            name: "ASC".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                if s.is_empty() {
-                    return Err(BasicError::Syntax {
-                        message: "ASC() requires a non-empty string".to_string(),
-                        basic_line_number: None,
-                        file_line_number: None,
-                    });
-                }
-                let first_char = s.chars().next().unwrap();
-                Ok((first_char as u32 as f64).to_string())
-            },
-            arg_types: vec![ArgType::String],
-        }),
-        "CHR$" => Some(BasicFunction::String {
-            name: "CHR$".to_string(),
-            lambda: |args| {
-                let value: u8 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(char::from(value).to_string())
-            },
-            arg_types: vec![ArgType::Number],
-        }),
-        "LEFT$" => Some(BasicFunction::String {
-            name: "LEFT$".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(s.chars().take(n).collect::<String>())
-            },
-            arg_types: vec![ArgType::String, ArgType::Number],
-        }),
-        "LEN" => Some(BasicFunction::Number {
-            name: "LEN".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                Ok(s.chars().count().to_string())
-            },
-            arg_types: vec![ArgType::String],
-        }),
-        "MID$" => Some(BasicFunction::String {
-            name: "MID$".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                let start: usize = args[1].parse::<usize>().unwrap().saturating_sub(1); // Already validated by validate_and_convert_args
-                let len: usize = args[2].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(s.chars().skip(start).take(len).collect::<String>())
-            },
-            arg_types: vec![ArgType::String, ArgType::Number, ArgType::Number],
-        }),
-        "RIGHT$" => Some(BasicFunction::String {
-            name: "RIGHT$".to_string(),
-            lambda: |args| {
-                let s = args[0].trim_matches('"');
-                let n: usize = args[1].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(s.chars()
-                        .rev()
-                        .take(n)
-                        .collect::<String>()
-                        .chars()
-                        .rev()
-                        .collect::<String>())
-            },
-            arg_types: vec![ArgType::String, ArgType::Number],
-        }),
-        "RND" => Some(BasicFunction::Number {
-            name: "RND".to_string(),
-            lambda: |args| {
-                use rand::Rng;
-                let mut rng = rand::thread_rng();
-                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                if value > 0.0 {
-                    Ok(rng.gen_range(0.0..1.0).to_string())
-                } else if value < 0.0 {
-                    Ok(value.to_string())
-                } else {
-                    Ok(rng.gen_range(0.0..1.0).to_string())
-                }
-            },
-            arg_types: vec![ArgType::Number],
-        }),
-        "SGN" => Some(BasicFunction::Number {
-            name: "SGN".to_string(),
-            lambda: |args| {
-                let value: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(if value > 0.0 {
-                    "1"
-                } else if value < 0.0 {
-                    "-1"
-                } else {
-                    "0"
-                }
-                .to_string())
-            },
-            arg_types: vec![ArgType::Number],
-        }),
-        "SPACE$" => Some(BasicFunction::String {
-            name: "SPACE$".to_string(),
-            lambda: |args| {
-                let n: usize = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(" ".repeat(n))
-            },
-            arg_types: vec![ArgType::Number],
-        }),
-        "STR$" => Some(BasicFunction::String {
-            name: "STR$".to_string(),
-            lambda: |args| {
-                let n: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                Ok(n.to_string())
-            },
-            arg_types: vec![ArgType::Number],
-        }),
-        "TAB" => Some(BasicFunction::String {
-            name: "TAB".to_string(),
-            lambda: |args| {
-                let n: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
-                let spaces = n.max(1.0) as usize; // Ensure at least 1 space, convert to column position
-                Ok(" ".repeat(spaces))
-            },
-            arg_types: vec![ArgType::Number],
-        }),
-        _ => None,
-    }
+    create_basic_function_from_registry(name)
 }
 
 pub struct PredefinedFunctions;
@@ -436,51 +202,26 @@ impl PredefinedFunctions {
     }
 
     pub fn functions(&self) -> Vec<String> {
-        vec![
-            "ABS".to_string(),
-            "ATN".to_string(),
-            "COS".to_string(),
-            "EXP".to_string(),
-            "INT".to_string(),
-            "LOG".to_string(),
-            "RND".to_string(),
-            "SIN".to_string(),
-            "SQR".to_string(),
-            "TAN".to_string(),
-        ]
+        FUNCTION_REGISTRY.get_numeric_function_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
     }
 
     pub fn call(&self, name: &str, args: &[f64]) -> Option<f64> {
-        match name.to_uppercase().as_str() {
-            "ABS" => args.get(0).map(|x| x.abs()),
-            "ATN" => args.get(0).map(|x| x.atan()),
-            "COS" => args.get(0).map(|x| x.cos()),
-            "EXP" => args.get(0).map(|x| x.exp()),
-            "INT" => args.get(0).map(|x| x.floor()),
-            "LOG" => args.get(0).map(|x| x.ln()),
-            "RND" => {
-                if args.is_empty() {
-                    Some(rand::thread_rng().gen())
-                } else {
-                    args.get(0).map(|&x| {
-                        if x < 0.0 {
-                            // Seed the RNG
-                            let mut rng = rand::rngs::StdRng::seed_from_u64(x.abs() as u64);
-                            rng.gen()
-                        } else if x == 0.0 {
-                            // Return last number
-                            0.0 // TODO: Store last number
-                        } else {
-                            // Return random number between 0 and x
-                            rand::thread_rng().gen_range(0.0..x)
-                        }
-                    })
-                }
+        if FUNCTION_REGISTRY.is_numeric_function(name) {
+            // Convert f64 args to strings for the registry
+            let string_args: Vec<String> = args.iter().map(|x| x.to_string()).collect();
+            
+            // Call the registry function
+            if let Ok(result) = FUNCTION_REGISTRY.call_function(name, &string_args) {
+                // Parse the result back to f64
+                result.parse::<f64>().ok()
+            } else {
+                None
             }
-            "SIN" => args.get(0).map(|x| x.sin()),
-            "SQR" => args.get(0).map(|x| x.sqrt()),
-            "TAN" => args.get(0).map(|x| x.tan()),
-            _ => None,
+        } else {
+            None
         }
     }
 }
@@ -593,8 +334,10 @@ mod tests {
                 let value = result.parse::<f64>().unwrap();
                 assert!(value >= 0.0 && value < 1.0);
 
-                // Test RND(-1) - returns -1
-                assert_eq!(lambda(&vec!["-1".to_string()]).unwrap(), "-1");
+                // Test RND(-1) - seeds and returns random number between 0 and 1
+                let result = lambda(&vec!["-1".to_string()]).unwrap();
+                let value = result.parse::<f64>().unwrap();
+                assert!(value >= 0.0 && value < 1.0);
 
                 // Test RND(0) - returns random number between 0 and 1
                 let result = lambda(&vec!["0".to_string()]).unwrap();

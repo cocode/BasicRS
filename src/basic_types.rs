@@ -1,4 +1,5 @@
 use std::fmt;
+use crate::basic_function_registry::FUNCTION_REGISTRY;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -732,9 +733,7 @@ pub fn is_valid_identifier(name: &str) -> bool {
     // Check if it's a known function name (3+ characters, all uppercase)
     if chars.len() >= 3 && chars.iter().all(|c| c.is_ascii_uppercase()) {
         // Allow known built-in functions
-        let known_functions = ["ABS", "ASC", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN", 
-                              "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$", "TAB"];
-        if known_functions.contains(&name) {
+        if FUNCTION_REGISTRY.is_function(name) {
             return true;
         }
         

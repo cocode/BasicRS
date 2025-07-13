@@ -1,4 +1,5 @@
 use crate::basic_types::{Token, BasicError, is_valid_identifier, IdentifierType};
+use crate::basic_function_registry::FUNCTION_REGISTRY;
 
 pub struct Lexer {
     chars: Vec<char>,
@@ -380,11 +381,8 @@ impl Lexer {
             ("NOT", Token::Not),
         ];
         
-        // Built-in functions
-        let functions = vec![
-            "ABS", "ASC", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN",
-            "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$", "TAB"
-        ];
+        // Built-in functions - from registry
+        let functions = FUNCTION_REGISTRY.get_function_names();
         
         // Try to match the longest keyword/function first
         for len in (1..=input.len()).rev() {
@@ -494,10 +492,7 @@ impl Lexer {
             "DEF", "AND", "OR", "NOT"
         ];
         
-        let functions = vec![
-            "ABS", "ASC", "ATN", "COS", "EXP", "INT", "LOG", "RND", "SGN", "SIN", "SQR", "TAN",
-            "CHR$", "LEFT$", "LEN", "MID$", "RIGHT$", "SPACE$", "STR$"
-        ];
+        let functions = FUNCTION_REGISTRY.get_function_names();
         
         // Try to match the longest keyword/function first
         for len in (1..=input.len()).rev() {

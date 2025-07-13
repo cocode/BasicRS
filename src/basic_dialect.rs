@@ -92,58 +92,23 @@ pub const OPERATORS: &[&str] = &[
     "NOT",          // Logical NOT
 ];
 
-// Built-in functions
-pub const FUNCTIONS: &[&str] = &[
-    "ABS",
-    "ATN",
-    "COS",
-    "EXP",
-    "INT",
-    "LOG",
-    "RND",
-    "SGN",
-    "SIN",
-    "SQR",
-    "TAN",
-    "CHR$",
-    "LEFT$",
-    "LEN",
-    "MID$",
-    "RIGHT$",
-];
+use crate::basic_function_registry::FUNCTION_REGISTRY;
 
-// Define string functions (those that return strings)
-pub const STRING_FUNCTIONS: &[&str] = &[
-    "CHR$",
-    "LEFT$",
-    "MID$",
-    "RIGHT$",
-];
-
-// Define numeric functions (those that return numbers)
-pub const NUMERIC_FUNCTIONS: &[&str] = &[
-    "ABS",
-    "ATN",
-    "COS",
-    "EXP",
-    "INT",
-    "LOG",
-    "RND",
-    "SGN",
-    "SIN",
-    "SQR",
-    "TAN",
-    "LEN",
-];
+// Built-in functions - now derived from registry
+lazy_static::lazy_static! {
+    pub static ref FUNCTIONS: Vec<&'static str> = FUNCTION_REGISTRY.get_function_names();
+    pub static ref STRING_FUNCTIONS: Vec<&'static str> = FUNCTION_REGISTRY.get_string_function_names();
+    pub static ref NUMERIC_FUNCTIONS: Vec<&'static str> = FUNCTION_REGISTRY.get_numeric_function_names();
+}
 
 // Helper function to check if a function returns a string
 pub fn is_string_function(name: &str) -> bool {
-    STRING_FUNCTIONS.contains(&name)
+    FUNCTION_REGISTRY.is_string_function(name)
 }
 
 // Helper function to check if a function returns a number
 pub fn is_numeric_function(name: &str) -> bool {
-    NUMERIC_FUNCTIONS.contains(&name)
+    FUNCTION_REGISTRY.is_numeric_function(name)
 }
 
 // Helper function to get operator precedence
