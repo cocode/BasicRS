@@ -257,11 +257,7 @@ impl Parser {
                     }
                 }
 
-                // For now, we'll use the first variable as the main variable
-                // TODO: Update Statement::Input to support multiple variables
-                let var = vars[0].clone();
-
-                Ok(Statement::Input { var, prompt })
+                Ok(Statement::Input { vars, prompt })
             }
             Some(Token::If) => {
                 self.advance();
@@ -1014,8 +1010,8 @@ mod tests {
         assert_eq!(program.lines[0].line_number, 2060);
         assert_eq!(program.lines[0].statements.len(), 1);
         
-        if let Statement::Input { var, prompt } = &program.lines[0].statements[0] {
-            assert_eq!(var, "A$");
+        if let Statement::Input { vars, prompt } = &program.lines[0].statements[0] {
+            assert_eq!(vars, &vec!["A$".to_string()]);
             assert_eq!(prompt, &Some("COMMAND".to_string()));
         } else {
             panic!("Expected INPUT statement");

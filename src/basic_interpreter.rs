@@ -487,43 +487,84 @@ impl Interpreter {
                 io::stdout().flush()?;
                 Ok(())
             }
-            Statement::Input { var, prompt } => {
-                let mut input = String::new();
-                if let Some(p) = prompt {
-                    print!("{}? ", p);
-                } else {
-                    print!("? ");
-                }
-                io::stdout().flush()?;
-                io::stdin().read_line(&mut input)?;
+            Statement::Input { vars, prompt } => {
+                const MAX_RETRIES: usize = 3;
+                let mut retry_count = 0;
                 
-                // Determine the expected type based on variable name
-                let is_string_variable = var.ends_with('$');
-                
-                let value = if is_string_variable {
-                    // For string variables (A$), always treat input as string
-                    let input_str = input.trim().to_string();
-                    let processed_str = if UPPERCASE_INPUT {
-                        input_str.to_uppercase()
+                loop {
+                    let mut input = String::new();
+                    if let Some(p) = prompt {
+                        print!("{}? ", p);
                     } else {
-                        input_str
-                    };
-                    SymbolValue::String(processed_str)
-                } else {
-                    // For numeric variables (A), try to parse as number first
-                    if let Ok(n) = input.trim().parse::<f64>() {
-                        SymbolValue::Number(n)
-                    } else {
-                        let input_str = input.trim().to_string();
-                        let processed_str = if UPPERCASE_INPUT {
-                            input_str.to_uppercase()
-                        } else {
-                            input_str
-                        };
-                        SymbolValue::String(processed_str)
+                        print!("? ");
                     }
-                };
-                self.put_symbol(var.clone(), value);
+                    io::stdout().flush()?;
+                    io::stdin().read_line(&mut input)?;
+                    
+                    // Split input by commas and process each part
+                    let input_parts: Vec<&str> = input.trim().split(',').collect();
+                    
+                    // Check if we have the right number of inputs
+                    if input_parts.len() != vars.len() {
+                        retry_count += 1;
+                        if retry_count >= MAX_RETRIES {
+                            return Err(BasicError::Runtime {
+                                message: format!("Expected {} input values, got {}. Maximum retries exceeded.", vars.len(), input_parts.len()),
+                                basic_line_number: Some(self.get_current_line().line_number),
+                                file_line_number: None,
+                            });
+                        }
+                        println!("?Redo from start");
+                        continue;
+                    }
+                    
+                    // Process each variable and its corresponding input
+                    let mut values = Vec::new();
+                    let mut parse_error = false;
+                    
+                    for (i, var) in vars.iter().enumerate() {
+                        let input_part = input_parts[i].trim();
+                        let is_string_variable = var.ends_with('$');
+                        
+                        let value = if is_string_variable {
+                            // For string variables (A$), always treat input as string
+                            let processed_str = if UPPERCASE_INPUT {
+                                input_part.to_uppercase()
+                            } else {
+                                input_part.to_string()
+                            };
+                            SymbolValue::String(processed_str)
+                        } else {
+                            // For numeric variables (A), try to parse as number
+                            if let Ok(n) = input_part.parse::<f64>() {
+                                SymbolValue::Number(n)
+                            } else {
+                                parse_error = true;
+                                break;
+                            }
+                        };
+                        values.push((var.clone(), value));
+                    }
+                    
+                    if parse_error {
+                        retry_count += 1;
+                        if retry_count >= MAX_RETRIES {
+                            return Err(BasicError::Runtime {
+                                message: "Invalid numeric input. Maximum retries exceeded.".to_string(),
+                                basic_line_number: Some(self.get_current_line().line_number),
+                                file_line_number: None,
+                            });
+                        }
+                        println!("?Redo from start");
+                        continue;
+                    }
+                    
+                    // All inputs were valid, store the values
+                    for (var, value) in values {
+                        self.put_symbol(var, value);
+                    }
+                    break;
+                }
                 Ok(())
             }
             Statement::If { condition } => {

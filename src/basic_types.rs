@@ -295,7 +295,7 @@ pub enum PrintItem {
 pub enum Statement {
     Let { var: Expression, value: Expression },
     Print { items: Vec<PrintItem> },
-    Input { var: String, prompt: Option<String> },
+    Input { vars: Vec<String>, prompt: Option<String> },
     If { condition: Expression },
     Then,
     Else,
@@ -327,8 +327,8 @@ impl Statement {
     pub fn new_print(expressions: Vec<Expression>) -> Self {
         Statement::Print { items: expressions.into_iter().map(PrintItem::Expression).collect() }
     }
-    pub fn new_input(var: String) -> Self {
-        Statement::Input { var, prompt: None }
+    pub fn new_input(vars: Vec<String>) -> Self {
+        Statement::Input { vars, prompt: None }
     }
 
     pub fn new_if(condition: Expression) -> Self {
@@ -423,12 +423,12 @@ impl fmt::Display for Statement {
                 }
                 Ok(())
             }
-            Input { var, prompt } => {
+            Input { vars, prompt } => {
                 write!(f, "INPUT")?;
                 if let Some(p) = prompt {
                     write!(f, " \"{}\"", p)?;
                 }
-                write!(f, " {}", var)
+                write!(f, " {}", vars.join(", "))
             },
             If { condition } => {
                 write!(f, "IF {}", condition)
