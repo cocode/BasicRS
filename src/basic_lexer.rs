@@ -1,5 +1,6 @@
 use crate::basic_types::{Token, BasicError, is_valid_identifier, IdentifierType};
 use crate::basic_function_registry::FUNCTION_REGISTRY;
+use crate::basic_keyword_registry::KEYWORD_REGISTRY;
 
 pub struct Lexer {
     chars: Vec<char>,
@@ -352,34 +353,8 @@ impl Lexer {
 
     // Try to match keywords or functions
     fn try_match_keyword_or_function(&mut self, input: &str) -> Option<Token> {
-        // Keywords
-        let keywords = vec![
-            ("REM", Token::Rem),
-            ("LET", Token::Let),
-            ("PRINT", Token::Print),
-            ("INPUT", Token::Input),
-            ("IF", Token::If),
-            ("THEN", Token::Then),
-            ("ELSE", Token::Else),
-            ("FOR", Token::For),
-            ("TO", Token::To),
-            ("STEP", Token::Step),
-            ("NEXT", Token::Next),
-            ("GOTO", Token::Goto),
-            ("GOSUB", Token::Gosub),
-            ("RETURN", Token::Return),
-            ("END", Token::End),
-            ("STOP", Token::Stop),
-            ("DATA", Token::Data),
-            ("READ", Token::Read),
-            ("RESTORE", Token::Restore),
-            ("DIM", Token::Dim),
-            ("ON", Token::On),
-            ("DEF", Token::Def),
-            ("AND", Token::And),
-            ("OR", Token::Or),
-            ("NOT", Token::Not),
-        ];
+        // Keywords from registry
+        let keywords = KEYWORD_REGISTRY.get_keyword_token_pairs();
         
         // Built-in functions - from registry
         let functions = FUNCTION_REGISTRY.get_function_names();
@@ -485,12 +460,7 @@ impl Lexer {
 
     // Get the length of the longest matching keyword
     fn get_keyword_length(&self, input: &str) -> Option<usize> {
-        let keywords = vec![
-            "REM", "LET", "PRINT", "INPUT", "IF", "THEN", "ELSE",
-            "FOR", "TO", "STEP", "NEXT", "GOTO", "GOSUB", "RETURN",
-            "END", "STOP", "DATA", "READ", "RESTORE", "DIM", "ON",
-            "DEF", "AND", "OR", "NOT"
-        ];
+        let keywords = KEYWORD_REGISTRY.get_keyword_names();
         
         let functions = FUNCTION_REGISTRY.get_function_names();
         

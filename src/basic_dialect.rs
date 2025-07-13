@@ -52,32 +52,7 @@ pub const MAX_FOR_DEPTH: usize = 20;
 // Maximum number of nested GOSUB calls
 pub const MAX_GOSUB_DEPTH: usize = 20;
 
-// Keywords
-pub const KEYWORDS: &[&str] = &[
-    "LET",
-    "PRINT",
-    "INPUT",
-    "IF",
-    "THEN",
-    "ELSE",
-    "FOR",
-    "TO",
-    "STEP",
-    "NEXT",
-    "GOTO",
-    "GOSUB",
-    "RETURN",
-    "REM",
-    "END",
-    "STOP",
-    "DATA",
-    "READ",
-    "RESTORE",
-    "DIM",
-    "AND",
-    "OR",
-    "NOT",
-];
+
 
 // Operators in order of precedence (highest to lowest)
 pub const OPERATORS: &[&str] = &[
