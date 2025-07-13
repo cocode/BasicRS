@@ -92,29 +92,4 @@ pub const OPERATORS: &[&str] = &[
     "NOT",          // Logical NOT
 ];
 
-use crate::basic_function_registry::FUNCTION_REGISTRY;
-
-// Built-in functions - now derived from registry
-lazy_static::lazy_static! {
-    pub static ref FUNCTIONS: Vec<&'static str> = FUNCTION_REGISTRY.get_function_names();
-    pub static ref STRING_FUNCTIONS: Vec<&'static str> = FUNCTION_REGISTRY.get_string_function_names();
-    pub static ref NUMERIC_FUNCTIONS: Vec<&'static str> = FUNCTION_REGISTRY.get_numeric_function_names();
-}
-
-// Helper function to check if a function returns a string
-pub fn is_string_function(name: &str) -> bool {
-    FUNCTION_REGISTRY.is_string_function(name)
-}
-
-// Helper function to check if a function returns a number
-pub fn is_numeric_function(name: &str) -> bool {
-    FUNCTION_REGISTRY.is_numeric_function(name)
-}
-
-// Helper function to get operator precedence
-pub fn get_operator_precedence(op: &str) -> i32 {
-    OPERATORS.iter()
-        .position(|&o| o == op)
-        .map(|i| 8 - i as i32)
-        .unwrap_or(0)
-} 
+ 
