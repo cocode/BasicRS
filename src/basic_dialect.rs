@@ -53,18 +53,4 @@ pub const MAX_FOR_DEPTH: usize = 20;
 pub const MAX_GOSUB_DEPTH: usize = 20;
 
 
-
-// Operators in order of precedence (highest to lowest)
-pub const OPERATORS: &[&str] = &[
-    "^",            // Exponentiation
-    "*", "/",       // Multiplication and division
-    "+", "-",       // Addition and subtraction
-    "=", "<>",      // Equality and inequality
-    "<", ">",       // Less than and greater than
-    "<=", ">=",     // Less than or equal and greater than or equal
-    "AND",          // Logical AND
-    "OR",           // Logical OR
-    "NOT",          // Logical NOT
-];
-
  
