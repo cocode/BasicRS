@@ -1,9 +1,24 @@
 use std::collections::HashMap;
 use crate::basic_types::BasicError;
-use crate::basic_functions::ArgType;
 use rand::Rng;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+
+/// Argument types for BASIC functions
+#[derive(Clone, Debug, PartialEq)]
+pub enum ArgType {
+    Number,
+    String,
+}
+
+impl ArgType {
+    pub fn name(&self) -> &str {
+        match self {
+            ArgType::Number => "number",
+            ArgType::String => "string",
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum FunctionType {
@@ -362,6 +377,57 @@ impl FunctionRegistry {
     
     pub fn get_arg_count(&self, name: &str) -> Option<usize> {
         self.functions.get(name).map(|def| def.arg_types.len())
+    }
+
+    /// Call a numeric function with f64 arguments (for interpreter use)
+    pub fn call_numeric_function(&self, name: &str, args: &[f64]) -> Option<f64> {
+        if self.is_numeric_function(name) {
+            let string_args: Vec<String> = args.iter().map(|x| x.to_string()).collect();
+            if let Ok(result) = self.call_function(name, &string_args) {
+                result.parse::<f64>().ok()
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Call a function with Token arguments and return a Token result
+    pub fn call_function_with_tokens(&self, name: &str, args: Vec<crate::basic_types::Token>) -> Result<crate::basic_types::Token, BasicError> {
+        use crate::basic_types::{Token, IdentifierType};
+        
+        if let Some(func_def) = self.get_function(name) {
+            // Convert tokens to strings
+            let arg_strings: Vec<String> = args
+                .into_iter()
+                .map(|t| match t {
+                    Token::Number(n) => Ok(n),
+                    Token::String(s) => Ok(s),
+                    Token::Identifier(name, IdentifierType::Variable) => Ok(name),
+                    _ => Err(BasicError::Runtime {
+                        message: format!("Invalid token: {:?}", t),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    }),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            
+            // Call the function
+            let result = self.call_function(name, &arg_strings)?;
+            
+            // Return appropriate token type
+            match func_def.function_type {
+                FunctionType::Number => Ok(Token::new_number(&result)),
+                FunctionType::String => Ok(Token::new_string(&result)),
+            }
+        } else {
+            Err(BasicError::Runtime {
+                message: format!("Unknown function '{}'", name),
+                basic_line_number: None,
+                file_line_number: None,
+            })
+        }
     }
 }
 

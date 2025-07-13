@@ -10,7 +10,7 @@ use crate::basic_types::{
     ExpressionType, RunStatus, SymbolValue, Token, PrintItem,
 };
 
-use crate::basic_functions::PredefinedFunctions;
+use crate::basic_function_registry::FUNCTION_REGISTRY;
 use crate::basic_operators::{BASIC_FALSE_F, BASIC_TRUE_F};
 use crate::basic_dialect::UPPERCASE_INPUT;
 
@@ -883,9 +883,9 @@ impl Interpreter {
             }
 
             ExpressionType::FunctionCall { name, args } => {
-                // Check if this is a function that uses the new function system
-                if let Some(function) = crate::basic_functions::get_function(name) {
-                    let expected_types = function.arg_types();
+                // Check if this is a built-in function
+                if FUNCTION_REGISTRY.is_function(name) {
+                    let expected_types = FUNCTION_REGISTRY.get_arg_types(name).unwrap();
                     if expected_types.len() != args.len() {
                         return Err(BasicError::Runtime {
                             message: format!("Function '{}' expects {} arguments, got {}", name, expected_types.len(), args.len()),
@@ -897,20 +897,20 @@ impl Interpreter {
                     for (arg, expected_type) in args.iter().zip(expected_types.iter()) {
                         let value = self.evaluate_expression(arg)?;
                         match (expected_type, value) {
-                            (crate::basic_functions::ArgType::Number, SymbolValue::Number(n)) => {
+                            (crate::basic_function_registry::ArgType::Number, SymbolValue::Number(n)) => {
                                 evaluated_args.push(Token::new_number(&n.to_string()));
                             }
-                            (crate::basic_functions::ArgType::String, SymbolValue::String(s)) => {
+                            (crate::basic_function_registry::ArgType::String, SymbolValue::String(s)) => {
                                 evaluated_args.push(Token::new_string(&s));
                             }
-                            (crate::basic_functions::ArgType::Number, other) => {
+                            (crate::basic_function_registry::ArgType::Number, other) => {
                                 return Err(BasicError::Runtime {
                                     message: format!("Function '{}' expects a number argument, got {:?}", name, other),
                                     basic_line_number: Some(self.get_current_line().line_number),
                                     file_line_number: None,
                                 });
                             }
-                            (crate::basic_functions::ArgType::String, other) => {
+                            (crate::basic_function_registry::ArgType::String, other) => {
                                 return Err(BasicError::Runtime {
                                     message: format!("Function '{}' expects a string argument, got {:?}", name, other),
                                     basic_line_number: Some(self.get_current_line().line_number),
@@ -919,7 +919,7 @@ impl Interpreter {
                             }
                         }
                     }
-                    let result = function.call(evaluated_args).map_err(|e| self.add_line_info_to_error(e))?;
+                    let result = FUNCTION_REGISTRY.call_function_with_tokens(name, evaluated_args).map_err(|e| self.add_line_info_to_error(e))?;
                     match result {
                         Token::Number(n) => Ok(SymbolValue::Number(n.parse().unwrap_or(0.0))),
                         Token::String(s) => Ok(SymbolValue::String(s)),
@@ -978,32 +978,11 @@ impl Interpreter {
                             })
                         }
                     } else {
-                        // Fall back to old function system for math functions
-                        let mut evaluated_args = Vec::new();
-                        for arg in args {
-                            let value = self.evaluate_expression(arg)?;
-                            if let SymbolValue::Number(n) = value {
-                                evaluated_args.push(n);
-                            } else {
-                                return Err(BasicError::Runtime {
-                                    message: format!("Invalid argument for function '{}'", name),
-                                    basic_line_number: Some(self.get_current_line().line_number),
-                                    file_line_number: None,
-                                });
-                            }
-                        }
-
-                        let funcs = PredefinedFunctions::new();
-
-                        if let Some(result) = funcs.call(name, &evaluated_args) {
-                            Ok(SymbolValue::Number(result))
-                        } else {
-                            Err(BasicError::Runtime {
-                                message: format!("Unknown function '{}'", name),
-                                basic_line_number: Some(self.get_current_line().line_number),
-                                file_line_number: None,
-                            })
-                        }
+                        Err(BasicError::Runtime {
+                            message: format!("Unknown function '{}'", name),
+                            basic_line_number: Some(self.get_current_line().line_number),
+                            file_line_number: None,
+                        })
                     }
                 }
             }
