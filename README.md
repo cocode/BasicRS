@@ -2,11 +2,19 @@
 
 BasicRS is a Rust implementation of a BASIC Interpreter 
 
-It's part of a family of BASIC interpreters that started with 
-TrekBasic, written in Python, and TrekBasicJ, written in Java.
+BasicRS is part of the TrekBasic family of BASIC programming tools.
+* TrekBasic - Python version
+* TrekBasicJ - Java Version
+* BasicRS - Rust version
+* BasicTestSuite - A test suite of BASIC Programs
+* TrekBot - A tool to exercise the superstartrek program
 
-TrekBasic was hand-written, but BasicRS was mostly translated by AI
-from TrekBasic.
+All versions are intended to by byte-by-byte compatible, but are not
+there yet - but they are close. TrekBot and BasicTestSuite are part of
+plan to ensure full compabtiblity.
+
+TrekBasic and TrekBasicJ are also compilers, and the compatibility
+targets are the same for the compiled versions. A compiler for BasicRS is planned.
 
 My goal was to be able to play the old Star Trek game, which was written in BASIC.
 
