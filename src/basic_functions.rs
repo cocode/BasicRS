@@ -415,6 +415,15 @@ pub fn get_function(name: &str) -> Option<BasicFunction> {
             },
             arg_types: vec![ArgType::Number],
         }),
+        "TAB" => Some(BasicFunction::String {
+            name: "TAB".to_string(),
+            lambda: |args| {
+                let n: f64 = args[0].parse().unwrap(); // Already validated by validate_and_convert_args
+                let spaces = n.max(1.0) as usize; // Ensure at least 1 space, convert to column position
+                Ok(" ".repeat(spaces))
+            },
+            arg_types: vec![ArgType::Number],
+        }),
         _ => None,
     }
 }
