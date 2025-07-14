@@ -414,7 +414,7 @@ impl fmt::Display for Statement {
             Let { var, value } => write!(f, "LET {} = {}", var, value),
             Print { items } => {
                 write!(f, "PRINT")?;
-                for (i, item) in items.iter().enumerate() {
+                for item in items{
                     match item {
                         PrintItem::Expression(expr) => write!(f, " {}", expr)?,
                         PrintItem::Tab(n) => write!(f, "\t{}", " ".repeat(*n))?,
