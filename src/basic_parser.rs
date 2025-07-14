@@ -144,7 +144,7 @@ impl Parser {
             self.advance(); // skip `LET`
         }
 
-        let var = self.parse_lvalue()?;
+:wq        let var = self.parse_variable_or_array_access()?;
         self.consume(&Token::Equal, "Expected '=' after variable name")?;
         let value = self.parse_expression()?;
 
@@ -349,7 +349,7 @@ impl Parser {
                 let mut vars = Vec::new();
 
                 while !self.is_at_end() && !self.check(&Token::Colon) && !self.check(&Token::Newline) {
-                    let var = self.parse_primary()?;
+                    let var = self.parse_variable_or_array_access()?;
                     vars.push(var);
 
                     if self.check(&Token::Comma) {
@@ -605,53 +605,7 @@ impl Parser {
                 self.advance();
                 Ok(Expression::new_string(s.clone()))
             }
-            Some(Token::Identifier(name, id_type)) => {
-                self.advance();
-                let mut array_ref = false;
-                if self.check(&Token::LeftParen) {
-                    array_ref = true;
-                    // Function call or array access
-                    self.advance();
-                    let mut args = Vec::new();
-
-                    if !self.check(&Token::RightParen) {
-                        loop {
-                            args.push(self.parse_expression()?);
-                            if !self.check(&Token::Comma) {
-                                break;
-                            }
-                            self.advance();
-                        }
-                    }
-
-                    self.consume(&Token::RightParen, "Expected ')' after arguments")?;
-
-                    match id_type {
-                        IdentifierType::UserDefinedFunction | IdentifierType::BuiltInFunction => {
-                            Ok(Expression::new_function_call(name.clone(), args))
-                        }
-                        IdentifierType::Array => Ok(Expression::new_array(name.clone(), args)),
-                        IdentifierType::Variable => {
-                            // Not yet consistent on array refs. Should the token be array or variable?
-                            if array_ref {
-                                Ok(Expression::new_array(name.clone(), args))
-                            } else {
-                                Ok(Expression::new_variable(name.clone()))
-                            }
-                        },
-                        other => Err(BasicError::Syntax {
-                            message: format!(
-                                "Unexpected identifier type '{:?}' in function/array expression",
-                                other
-                            ),
-                            basic_line_number: None,  // TODO catch unlikely error
-                            file_line_number: None,
-                        }),
-                    }
-                } else {
-                    Ok(Expression::new_variable(name.clone()))
-                }
-            }
+            Some(Token::Identifier(_, _)) => self.parse_identifier_expression(),
             Some(Token::LeftParen) => {
                 self.advance();
                 let expr = self.parse_expression()?;
@@ -662,6 +616,63 @@ impl Parser {
                 message: "Expected expression".to_string(),
                 basic_line_number: self.current_basic_line,
                 file_line_number: None,
+            }),
+        }
+    }
+
+    /// This function parses expressions that start with an identifier:
+    /// - Simple variables: X
+    /// - Array access: A(1, 2)
+    /// - Function calls: SIN(30)
+    fn parse_identifier_expression(&mut self) -> Result<Expression, BasicError> {
+        let (name, id_type) = if let Some(Token::Identifier(name, id_type)) = self.peek().cloned() {
+            self.advance();
+            (name, id_type)
+        } else {
+            // This path should ideally not be reached if called correctly from parse_primary
+            return Err(BasicError::Syntax {
+                message: "Expected an identifier".to_string(),
+                basic_line_number: self.current_basic_line,
+                file_line_number: Some(self.current_file_line),
+            });
+        };
+
+        // If there are no parentheses, it's a simple variable.
+        if !self.check(&Token::LeftParen) {
+            return Ok(Expression::new_variable(name));
+        }
+
+        // It has parentheses, so it's a function call or array access.
+        self.advance(); // Consume '('
+        let mut args = Vec::new();
+
+        if !self.check(&Token::RightParen) {
+            loop {
+                args.push(self.parse_expression()?);
+                if !self.check(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+        }
+
+        self.consume(&Token::RightParen, "Expected ')' after arguments")?;
+
+        match id_type {
+            IdentifierType::UserDefinedFunction | IdentifierType::BuiltInFunction => {
+                Ok(Expression::new_function_call(name, args))
+            }
+            IdentifierType::Array | IdentifierType::Variable => {
+                // If it has parentheses, we treat it as an array access regardless of the initial token type.
+                Ok(Expression::new_array(name, args))
+            }
+            other => Err(BasicError::Syntax {
+                message: format!(
+                    "Unexpected identifier type '{:?}' in function/array expression",
+                    other
+                ),
+                basic_line_number: self.current_basic_line,
+                file_line_number: Some(self.current_file_line),
             }),
         }
     }
@@ -795,22 +806,16 @@ impl Parser {
     //     Ok(statements)
     // }
 
-    /// Parse an expression that is the left hand side of a LET statement.
-    /// LET D(5) = 99
-    fn parse_lvalue(&mut self) -> Result<Expression, BasicError> {
+    /// Parse an expression that is the left hand side of a LET or READ statement.
+    /// This must be an assignable target, i.e., a variable or an array element.
+    /// e.g. `X`, `A$`, `D(5)`
+    fn parse_variable_or_array_access(&mut self) -> Result<Expression, BasicError> {
         let token = self.peek().cloned();
         match token {
-            Some(Token::Number(n)) => {
-                self.advance();
-                Ok(Expression::new_number(n.parse().unwrap()))
-            }
-            Some(Token::String(s)) => {
-                self.advance();
-                Ok(Expression::new_string(s.clone()))
-            }
-            Some(Token::Identifier(name, id_type)) => {
+            Some(Token::Identifier(name, _)) => {
                 self.advance();
                 if self.check(&Token::LeftParen) {
+                    // Array access
                     self.advance();
                     let mut args = Vec::new();
 
@@ -827,17 +832,12 @@ impl Parser {
                     self.consume(&Token::RightParen, "Expected ')' after arguments")?;
                     Ok(Expression::new_array(name.clone(), args))
                 } else {
+                    // Simple variable
                     Ok(Expression::new_variable(name.clone()))
                 }
             }
-            Some(Token::LeftParen) => {
-                self.advance();
-                let expr = self.parse_expression()?;
-                self.consume(&Token::RightParen, "Expected ')' after expression")?;
-                Ok(expr)
-            }
             _ => Err(BasicError::Syntax {
-                message: "Expected expression".to_string(),
+                message: "Expected a variable or array for assignment".to_string(),
                 basic_line_number: self.current_basic_line,
                 file_line_number: Some(self.current_file_line),
             }),
