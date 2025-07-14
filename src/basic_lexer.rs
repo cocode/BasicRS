@@ -7,7 +7,6 @@ pub struct Lexer {
     position: usize,
     file_line_number: usize,
     basic_line_number: Option<usize>,
-    last_rem_comment: Option<String>,
 }
 
 impl Lexer {
@@ -18,7 +17,6 @@ impl Lexer {
             position: 0,
             file_line_number: 1,
             basic_line_number: None,
-            last_rem_comment: None,
         }
     }
 
@@ -189,9 +187,23 @@ impl Lexer {
                     // New lookahead-based identifier parsing for BASIC
                     let token = self.tokenize_identifier_lookahead()?;
                     tokens.push(token);
-                    // Special handling for REM: if last_rem_comment is set, push it as a string token
-                    if let Some(comment) = self.last_rem_comment.take() {
-                        tokens.push(Token::String(comment));
+                    
+                    // Check if this was a REM token - if so, get the comment directly
+                    if let Token::Rem = tokens.last().unwrap() {
+                        // Collect the rest of the line as a comment
+                        let mut comment = String::new();
+                        while self.position < self.chars.len() {
+                            let c = self.chars[self.position];
+                            if c == '\r' || c == '\n' {
+                                // Stop at line ending but don't consume it
+                                break;
+                            }
+                            comment.push(c);
+                            self.advance();
+                        }
+                        // Trim leading whitespace from the comment
+                        let trimmed_comment = comment.trim_start().to_string();
+                        tokens.push(Token::String(trimmed_comment));
                         // After REM, the rest of the line is a comment, so break
                         break;
                     }
@@ -317,30 +329,9 @@ impl Lexer {
         
         // Step 1: Scan for keywords, functions, or user-defined functions
         if let Some(token) = self.try_match_keyword_or_function(&input_str) {
-            // Special handling for REM
+            // Set position based on the matched length
             if let Some(keyword_len) = self.get_keyword_length(&input_str) {
-                let keyword = &input_str[..keyword_len];
-                if keyword == "REM" {
-                    self.position = start_pos + keyword_len;
-                    // Emit REM token
-                    // Collect the rest of the line as a comment
-                    let mut comment = String::new();
-                    while self.position < self.chars.len() {
-                        let c = self.chars[self.position];
-                        if c == '\r' || c == '\n' {
-                            // Stop at line ending but don't consume it
-                            break;
-                        }
-                        comment.push(c);
-                        self.advance();
-                    }
-                    // Trim leading whitespace from the comment
-                    let trimmed_comment = comment.trim_start().to_string();
-                    self.last_rem_comment = Some(trimmed_comment);
-                    return Ok(Token::Rem);
-                } else {
-                    self.position = start_pos + keyword_len;
-                }
+                self.position = start_pos + keyword_len;
             }
             return Ok(token);
         }
