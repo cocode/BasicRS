@@ -61,9 +61,17 @@ impl Lexer {
         // Add newline token at end of line
         if self.position < self.chars.len() {
             let c = self.chars[self.position];
-            if c == '\n' || c == '\r' {
+            if c == '\r' {
                 line_tokens.push(Token::Newline);
-                self.advance();
+                self.advance(); // Skip CR
+                // Check for LF after CR (CRLF sequence)
+                if self.position < self.chars.len() && self.chars[self.position] == '\n' {
+                    self.advance(); // Skip LF too
+                }
+                self.file_line_number += 1;
+            } else if c == '\n' {
+                line_tokens.push(Token::Newline);
+                self.advance(); // Skip LF
                 self.file_line_number += 1;
             }
         }
@@ -319,7 +327,8 @@ impl Lexer {
                     let mut comment = String::new();
                     while self.position < self.chars.len() {
                         let c = self.chars[self.position];
-                        if c == '\n' || c == '\r' {
+                        if c == '\r' || c == '\n' {
+                            // Stop at line ending but don't consume it
                             break;
                         }
                         comment.push(c);
@@ -372,7 +381,21 @@ impl Lexer {
                         let mut comment = String::new();
                         while self.position < self.chars.len() {
                             let c = self.chars[self.position];
-                            if c == '\n' || c == '\r' {
+                            if c == '\r' {
+                                // Check for CRLF sequence
+                                if self.position + 1 < self.chars.len() && self.chars[self.position + 1] == '\n' {
+                                    // Skip both CR and LF
+                                    self.advance(); // Skip CR
+                                    self.advance(); // Skip LF
+                                    break;
+                                } else {
+                                    // Just CR
+                                    self.advance(); // Skip CR
+                                    break;
+                                }
+                            } else if c == '\n' {
+                                // Just LF
+                                self.advance(); // Skip LF
                                 break;
                             }
                             comment.push(c);
