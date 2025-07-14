@@ -10,7 +10,6 @@ pub struct Parser {
     current: usize,
     current_basic_line: Option<usize>,  // If there is a syntax error, there may not be a line number
     current_file_line: usize,           // There should always be a 'line number the file' (or source string)
-    _data_values: Vec<SymbolValue>
 }
 
 impl Parser {
@@ -20,7 +19,6 @@ impl Parser {
             current: 0,
             current_basic_line: None,
             current_file_line: 1,
-            _data_values: Vec::new(),
         }
     }
 
@@ -71,11 +69,8 @@ impl Parser {
             let stmt = self.parse_statement()?;
             statements.push(stmt.clone());
 
-            // After REM, consume rest of line TODO Not right, we already consume the line when parsing the REM
+            // After REM, the rest of the line is consumed, so we can break early.
             if let Statement::Rem { .. } = stmt {
-                while !self.is_at_end() && !self.check(&Token::Newline) {
-                    self.advance();
-                }
                 break;
             }
 
@@ -98,7 +93,7 @@ impl Parser {
                 let value = n.parse::<f64>().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid numeric constant in DATA: {}", n),
                     basic_line_number: self.current_basic_line,
-                    file_line_number: None,
+                    file_line_number: Some(self.current_file_line),
                 })?;
                 Ok(SymbolValue::Number(value))
             }
@@ -111,14 +106,14 @@ impl Parser {
                         let value = n.parse::<f64>().map_err(|_| BasicError::Syntax {
                             message: format!("Invalid numeric constant in DATA: -{}", n),
                             basic_line_number: self.current_basic_line,
-                            file_line_number: None,
+                            file_line_number: Some(self.current_file_line),
                         })?;
                         Ok(SymbolValue::Number(-value))
                     }
                     _ => Err(BasicError::Syntax {
                         message: "Expected number after minus sign in DATA".to_string(),
                         basic_line_number: self.current_basic_line,
-                        file_line_number: None,
+                        file_line_number: Some(self.current_file_line),
                     })
                 }
             }
@@ -129,12 +124,12 @@ impl Parser {
             Some(other) => Err(BasicError::Syntax {
                 message: format!("Invalid token in DATA statement: {}", other),
                 basic_line_number: self.current_basic_line,
-                file_line_number: None,
+                file_line_number: Some(self.current_file_line),
             }),
             None => Err(BasicError::Syntax {
                 message: "Unexpected end of input in DATA statement".to_string(),
                 basic_line_number: self.current_basic_line,
-                file_line_number: None,
+                file_line_number: Some(self.current_file_line),
             }),
         }
     }
@@ -144,7 +139,7 @@ impl Parser {
             self.advance(); // skip `LET`
         }
 
-:wq        let var = self.parse_variable_or_array_access()?;
+        let var = self.parse_variable_or_array_access()?;
         self.consume(&Token::Equal, "Expected '=' after variable name")?;
         let value = self.parse_expression()?;
 
@@ -239,7 +234,7 @@ impl Parser {
                         return Err(BasicError::Syntax {
                             message: "Expected ';' or ',' after INPUT prompt".to_string(),
                             basic_line_number: self.current_basic_line,
-                            file_line_number: None,
+                            file_line_number: Some(self.current_file_line),
                         });
                     }
                 }
@@ -441,7 +436,7 @@ impl Parser {
                     Err(BasicError::Syntax {
                         message: "Expected GOTO or GOSUB after ON expression".to_string(),
                         basic_line_number: self.current_basic_line,
-                        file_line_number: None,
+                        file_line_number: Some(self.current_file_line),
                     })
                 }
             }
@@ -615,7 +610,7 @@ impl Parser {
             _ => Err(BasicError::Syntax {
                 message: "Expected expression".to_string(),
                 basic_line_number: self.current_basic_line,
-                file_line_number: None,
+                file_line_number: Some(self.current_file_line),
             }),
         }
     }
@@ -713,7 +708,7 @@ impl Parser {
             Err(BasicError::Syntax {
                 message: message.to_string(),
                 basic_line_number: self.current_basic_line,
-                file_line_number: None,
+                file_line_number: Some(self.current_file_line),
             })
         }
     }
@@ -732,7 +727,7 @@ impl Parser {
             _ => Err(BasicError::Syntax {
                 message: "Expected identifier".to_string(),
                 basic_line_number: self.current_basic_line,
-                file_line_number: None,
+                file_line_number: Some(self.current_file_line),
             }),
         }
     }
@@ -745,13 +740,13 @@ impl Parser {
                 n.parse().map_err(|_| BasicError::Syntax {
                     message: format!("Invalid number: {}", n),
                     basic_line_number: self.current_basic_line,
-                    file_line_number: None,
+                    file_line_number: Some(self.current_file_line),
                 })
             }
             _ => Err(BasicError::Syntax {
                 message: "Expected number".to_string(),
                 basic_line_number: self.current_basic_line,
-                file_line_number: None,
+                file_line_number: Some(self.current_file_line),
             }),
         }
     }
@@ -1169,7 +1164,18 @@ fn test_parse_let_statement_with_array() {
     let expression = parser.parse_expression().unwrap();
 
     println!("Parsed expression: {}", expression);
- }
+    if let Expression { expr_type: ExpressionType::Array { name, indices }, .. } = expression {
+        assert_eq!(name, "D");
+        assert_eq!(indices.len(), 1);
+        if let Expression { expr_type: ExpressionType::Number(val), .. } = indices[0] {
+            assert_eq!(val, 5.0);
+        } else {
+            panic!("Expected number argument in array access");
+        }
+    } else {
+        panic!("Expected array access expression");
+    }
+}
 #[test]
 fn test_parse_let_statement_with_array_plus_one() {
     let tokens = vec![
@@ -1191,4 +1197,29 @@ fn test_parse_let_statement_with_array_plus_one() {
     let expression = parser.parse_expression().unwrap();
 
     println!("Parsed expression: {}", expression);
+    if let Expression { expr_type: ExpressionType::BinaryOp { op, left, right }, .. } = expression {
+        assert_eq!(op, "+");
+
+        // Check left side of operator
+        if let Expression { expr_type: ExpressionType::Array { name, indices }, .. } = *left {
+            assert_eq!(name, "D");
+            assert_eq!(indices.len(), 1);
+            if let Expression { expr_type: ExpressionType::Number(val), .. } = indices[0] {
+                assert_eq!(val, 5.0);
+            } else {
+                panic!("Expected number argument in array access");
+            }
+        } else {
+            panic!("Expected array access on left side of operator");
+        }
+
+        // Check right side of operator
+        if let Expression { expr_type: ExpressionType::Number(val), .. } = *right {
+            assert_eq!(val, 1.0);
+        } else {
+            panic!("Expected number on right side of operator");
+        }
+    } else {
+        panic!("Expected binary operation expression");
+    }
 }
