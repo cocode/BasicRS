@@ -8,6 +8,7 @@ use crate::basic_reports::CoverageData;
 use crate::basic_types::{
     Program, ProgramLine, Statement, Expression, BasicError,
     ExpressionType, RunStatus, SymbolValue, Token, PrintItem,
+    ArrayElementType, ArrayData,
 };
 
 use crate::basic_function_registry::FUNCTION_REGISTRY;
@@ -97,6 +98,26 @@ impl Interpreter {
             // If error already has line number info, return as-is
             other => other,
         }
+    }
+
+    /// Helper function to evaluate array indices - accepts floats and truncates them to integers
+    /// The actual bounds checking is properly handled by SymbolTable methods
+    fn evaluate_array_indices(&mut self, indices: &[Expression]) -> Result<Vec<usize>, BasicError> {
+        indices.iter()
+            .map(|expr| match self.evaluate_expression(expr)? {
+                SymbolValue::Number(n) if n >= 0.0 => Ok(n.trunc() as usize),
+                SymbolValue::Number(n) => Err(BasicError::Runtime {
+                    message: format!("Array index must be non-negative, got: {}", n),
+                    basic_line_number: Some(self.get_current_line().line_number),
+                    file_line_number: None,
+                }),
+                _ => Err(BasicError::Runtime {
+                    message: "Array index must be a number".to_string(),
+                    basic_line_number: Some(self.get_current_line().line_number),
+                    file_line_number: None,
+                })
+            })
+            .collect()
     }
 
     pub fn new(program: Program) -> Self {
@@ -391,22 +412,7 @@ impl Interpreter {
                         Ok(())
                     }
                     ExpressionType::Array { name, indices } => {
-                        let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
-                            .map(|expr| match self.evaluate_expression(expr)? {
-                                SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
-                                SymbolValue::Number(n) => Err(BasicError::Runtime {
-                                    message: format!("Array index must be non-negative, got: {}", n),
-                                    basic_line_number: Some(self.get_current_line().line_number),
-                                    file_line_number: None,
-                                }),
-                                _ => Err(BasicError::Runtime {
-                                    message: "Array index must be a number".to_string(),
-                                    basic_line_number: Some(self.get_current_line().line_number),
-                                    file_line_number: None,
-                                })
-                            })
-                            .collect();
-                        let indices = idx_values?;
+                        let indices = self.evaluate_array_indices(indices)?;
                         self.symbols
                             .set_array_element(name, &indices, result)
                             .map_err(|mut err| {
@@ -764,22 +770,7 @@ impl Interpreter {
                             self.put_symbol(name.clone(), value);
                         }
                         ExpressionType::Array { name, indices } => {
-                            let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
-                                .map(|expr| match self.evaluate_expression(expr)? {
-                                    SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
-                                    SymbolValue::Number(n) => Err(BasicError::Runtime {
-                                        message: format!("Array index must be non-negative, got: {}", n),
-                                        basic_line_number: Some(self.get_current_line().line_number),
-                                        file_line_number: None,
-                                    }),
-                                    _ => Err(BasicError::Runtime {
-                                        message: "Array index must be a number".to_string(),
-                                        basic_line_number: Some(self.get_current_line().line_number),
-                                        file_line_number: None,
-                                    })
-                                })
-                                .collect();
-                            let indices = idx_values?;
+                            let indices = self.evaluate_array_indices(indices)?;
                             self.symbols.set_array_element(name, &indices, value)?;
                         }
                         _ => {
@@ -863,23 +854,7 @@ impl Interpreter {
             ExpressionType::Variable(name) => self.get_symbol(name),
 
             ExpressionType::Array { name, indices } => {
-                let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
-                    .map(|expr| match self.evaluate_expression(expr)? {
-                        SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
-                        SymbolValue::Number(n) => Err(BasicError::Runtime {
-                            message: format!("Array index must be non-negative, got: {}", n),
-                            basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: None,
-                        }),
-                        _ => Err(BasicError::Runtime {
-                            message: "Array index must be a number".to_string(),
-                            basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: None,
-                        })
-                    })
-                    .collect();
-
-                let indices = idx_values?;
+                let indices = self.evaluate_array_indices(indices)?;
                 self.symbols.get_array_element(name, &indices).map_err(|e| self.add_line_info_to_error(e))
             }
 
@@ -1339,22 +1314,24 @@ mod tests {
         interpreter.run()?;
 
         // Test 2D numeric array (arrays stored with [] suffix)
-        if let SymbolValue::Array2DNumber(arr) = interpreter.get_symbol("A[]")? {
-            assert_eq!(arr.len(), 2);               // rows
-            assert_eq!(arr[0].len(), 5);            // columns
+        if let SymbolValue::Array { element_type: ArrayElementType::Number, dimensions, data: ArrayData::Numbers(arr) } = interpreter.get_symbol("A[]")? {
+            assert_eq!(*dimensions, vec![2, 5]);    // dimensions
+            assert_eq!(arr.len(), 10);              // 2 * 5 = 10 total elements
         } else {
             panic!("Expected 2D numeric array 'A'");
         }
 
         // Test 1D numeric array (arrays stored with [] suffix)
-        if let SymbolValue::Array1DNumber(arr) = interpreter.get_symbol("B[]")? {
+        if let SymbolValue::Array { element_type: ArrayElementType::Number, dimensions, data: ArrayData::Numbers(arr) } = interpreter.get_symbol("B[]")? {
+            assert_eq!(*dimensions, vec![4]);
             assert_eq!(arr.len(), 4);
         } else {
             panic!("Expected 1D numeric array 'B'");
         }
 
         // Test 1D string array (arrays stored with [] suffix)
-        if let SymbolValue::Array1DString(arr) = interpreter.get_symbol("C$[]")? {
+        if let SymbolValue::Array { element_type: ArrayElementType::String, dimensions, data: ArrayData::Strings(arr) } = interpreter.get_symbol("C$[]")? {
+            assert_eq!(*dimensions, vec![3]);
             assert_eq!(arr.len(), 3);
         } else {
             panic!("Expected 1D string array 'C$'");

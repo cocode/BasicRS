@@ -902,9 +902,27 @@ mod tests {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum ArrayElementType {
+    Number,
+    String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArrayData {
+    Numbers(Vec<f64>),    // Flattened storage for N-dimensional numeric arrays
+    Strings(Vec<String>), // Flattened storage for N-dimensional string arrays
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum SymbolValue {
     Number(f64),
     String(String),
+    Array {
+        element_type: ArrayElementType,
+        dimensions: Vec<usize>,
+        data: ArrayData,
+    },
+    // Legacy support - these will be removed after refactoring is complete
     Array1DNumber(Vec<f64>),
     Array2DNumber(Vec<Vec<f64>>),
     Array1DString(Vec<String>),
@@ -927,6 +945,7 @@ impl PartialOrd for SymbolValue {
 impl SymbolValue {
     pub fn len(&self) -> usize {
         match self {
+            SymbolValue::Array { dimensions, .. } => dimensions.iter().product(),
             SymbolValue::Array1DNumber(arr) => arr.len(),
             SymbolValue::Array2DNumber(arr) => arr.len(),
             SymbolValue::Array1DString(arr) => arr.len(),
@@ -950,6 +969,26 @@ impl fmt::Display for SymbolValue {
                 }
             },
             SymbolValue::String(s) => write!(f, "{}", s),
+
+            SymbolValue::Array { element_type, dimensions, data } => {
+                match (element_type, data) {
+                    (ArrayElementType::Number, ArrayData::Numbers(vec)) => {
+                        if dimensions.len() == 1 {
+                            write!(f, "{:?}", vec)
+                        } else {
+                            write!(f, "Array{:?}", dimensions)
+                        }
+                    }
+                    (ArrayElementType::String, ArrayData::Strings(vec)) => {
+                        if dimensions.len() == 1 {
+                            write!(f, "{:?}", vec)
+                        } else {
+                            write!(f, "Array{:?}", dimensions)
+                        }
+                    }
+                    _ => write!(f, "InvalidArray")
+                }
+            }
 
             SymbolValue::Array1DNumber(a) => write!(f, "{:?}", a),
             SymbolValue::Array2DNumber(a) => {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::basic_dialect::ARRAY_OFFSET;
-use crate::basic_types::{BasicError, Expression, SymbolValue};
+use crate::basic_types::{BasicError, Expression, SymbolValue, ArrayElementType, ArrayData};
 
 #[derive(Clone)]
 pub struct SymbolTable {
@@ -13,6 +13,56 @@ pub fn adjust(coord: usize) -> usize {
 }
 
 impl SymbolTable {
+    /// Validates array indices against ARRAY_OFFSET and dimension bounds, returning adjusted indices
+    fn validate_and_adjust_indices(&self, name: &str, indices: &[usize], dimensions: &[usize]) -> Result<Vec<usize>, BasicError> {
+        // Check dimension count
+        if indices.len() != dimensions.len() {
+            return Err(BasicError::Runtime {
+                message: format!("Array '{}' expects {} indices, got {}", name, dimensions.len(), indices.len()),
+                basic_line_number: None,
+                file_line_number: None,
+            });
+        }
+        
+        // Check ARRAY_OFFSET bounds and adjust
+        let mut adjusted = Vec::new();
+        for (i, (&index, &dim_size)) in indices.iter().zip(dimensions.iter()).enumerate() {
+            if index < ARRAY_OFFSET {
+                return Err(BasicError::Runtime {
+                    message: format!("Array index {} out of bounds for '{}' dimension {}. Valid range: {} to {}", 
+                        index, name, i, ARRAY_OFFSET, dim_size - 1 + ARRAY_OFFSET),
+                    basic_line_number: None,
+                    file_line_number: None,
+                });
+            }
+            let adjusted_index = index - ARRAY_OFFSET;
+            if adjusted_index >= dim_size {
+                return Err(BasicError::Runtime {
+                    message: format!("Array index {} out of bounds for '{}' dimension {}. Valid range: {} to {}", 
+                        index, name, i, ARRAY_OFFSET, dim_size - 1 + ARRAY_OFFSET),
+                    basic_line_number: None,
+                    file_line_number: None,
+                });
+            }
+            adjusted.push(adjusted_index);
+        }
+        Ok(adjusted)
+    }
+    
+    /// Converts multi-dimensional indices to flat index using row-major order
+    fn calculate_flat_index(indices: &[usize], dimensions: &[usize]) -> usize {
+        let mut flat_index = 0;
+        let mut stride = 1;
+        
+        // Calculate flat index in row-major order
+        for i in (0..indices.len()).rev() {
+            flat_index += indices[i] * stride;
+            if i > 0 {
+                stride *= dimensions[i];
+            }
+        }
+        flat_index
+    }
 
     pub fn get_array_element(&self, name: &str, indices: &[usize]) -> Result<SymbolValue, BasicError> {
         // Arrays are stored with [] suffix to separate from scalar variables
@@ -24,6 +74,27 @@ impl SymbolTable {
         })?;
 
         match symbol {
+            // New unified array type
+            SymbolValue::Array { element_type, dimensions, data } => {
+                let adjusted_indices = self.validate_and_adjust_indices(name, indices, dimensions)?;
+                let flat_index = Self::calculate_flat_index(&adjusted_indices, dimensions);
+                
+                match (element_type, data) {
+                    (ArrayElementType::Number, ArrayData::Numbers(vec)) => {
+                        Ok(SymbolValue::Number(vec[flat_index]))
+                    }
+                    (ArrayElementType::String, ArrayData::Strings(vec)) => {
+                        Ok(SymbolValue::String(vec[flat_index].clone()))
+                    }
+                    _ => Err(BasicError::Runtime {
+                        message: format!("Array '{}' has mismatched element type and data", name),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    }),
+                }
+            }
+
+            // Legacy array types - maintain backwards compatibility during transition
             SymbolValue::Array1DNumber(vec) => {
                 if indices.len() != 1 {
                     return Err(BasicError::Runtime {
@@ -142,6 +213,29 @@ impl SymbolTable {
     pub fn set_array_element(&mut self, name: &str, indices: &[usize], value: SymbolValue) -> Result<(), BasicError> {
         // Arrays are stored with [] suffix to separate from scalar variables
         let array_key = format!("{}[]", name);
+        
+        // First, validate indices without borrowing symbols mutably
+        let (adjusted_indices, flat_index) = {
+            let symbol = self.symbols.get(&array_key).ok_or(BasicError::Runtime {
+                message: format!("Array '{}' not found", name),
+                basic_line_number: None,
+                file_line_number: None,
+            })?;
+            
+            match symbol {
+                SymbolValue::Array { dimensions, .. } => {
+                    let adjusted_indices = self.validate_and_adjust_indices(name, indices, dimensions)?;
+                    let flat_index = Self::calculate_flat_index(&adjusted_indices, dimensions);
+                    (adjusted_indices, flat_index)
+                }
+                _ => {
+                    // For legacy arrays, we'll handle validation below
+                    (Vec::new(), 0)
+                }
+            }
+        };
+        
+        // Now get mutable access to update the array
         let symbol = self.symbols.get_mut(&array_key).ok_or(BasicError::Runtime {
             message: format!("Array '{}' not found", name),
             basic_line_number: None,
@@ -149,6 +243,35 @@ impl SymbolTable {
         })?;
 
         match symbol {
+            // New unified array type
+            SymbolValue::Array { element_type, data, .. } => {
+                match (element_type, data, value) {
+                    (ArrayElementType::Number, ArrayData::Numbers(vec), SymbolValue::Number(n)) => {
+                        vec[flat_index] = n;
+                        Ok(())
+                    }
+                    (ArrayElementType::String, ArrayData::Strings(vec), SymbolValue::String(s)) => {
+                        vec[flat_index] = s;
+                        Ok(())
+                    }
+                    (ArrayElementType::Number, _, _) => {
+                        Err(BasicError::Runtime {
+                            message: "Type mismatch: expected number for numeric array".to_string(),
+                            basic_line_number: None,
+                            file_line_number: None,
+                        })
+                    }
+                    (ArrayElementType::String, _, _) => {
+                        Err(BasicError::Runtime {
+                            message: "Type mismatch: expected string for string array".to_string(),
+                            basic_line_number: None,
+                            file_line_number: None,
+                        })
+                    }
+                }
+            }
+
+            // Legacy array types - maintain backwards compatibility during transition
             SymbolValue::Array1DNumber(vec) => {
                 if indices.len() != 1 {
                     return Err(BasicError::Runtime {
@@ -165,7 +288,7 @@ impl SymbolTable {
                     });
                 }
                 let index = adjust(indices[0]);
-                if index  >= vec.len() {
+                if index >= vec.len() {
                     return Err(BasicError::Runtime {
                         message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
@@ -311,37 +434,25 @@ impl SymbolTable {
         }
 
         let is_string = name.ends_with('$');
+        let total_elements: usize = dimensions.iter().product();
 
-        match dimensions.len() {
-            1 => {
-                let size = dimensions[0];
-                let array = if is_string {
-                    SymbolValue::Array1DString(vec!["".to_string(); size])
-                } else {
-                    SymbolValue::Array1DNumber(vec![0.0; size])
-                };
-                self.symbols.insert(array_key, array);
-                Ok(())
+        // Create new unified array type
+        let array = if is_string {
+            SymbolValue::Array {
+                element_type: ArrayElementType::String,
+                dimensions: dimensions.clone(),
+                data: ArrayData::Strings(vec!["".to_string(); total_elements]),
             }
-
-            2 => {
-                let rows = dimensions[0];
-                let cols = dimensions[1];
-                let array = if is_string {
-                    SymbolValue::Array2DString(vec![vec!["".to_string(); cols]; rows])
-                } else {
-                    SymbolValue::Array2DNumber(vec![vec![0.0; cols]; rows])
-                };
-                self.symbols.insert(array_key, array);
-                Ok(())
+        } else {
+            SymbolValue::Array {
+                element_type: ArrayElementType::Number,
+                dimensions: dimensions.clone(),
+                data: ArrayData::Numbers(vec![0.0; total_elements]),
             }
+        };
 
-            _ => Err(BasicError::Runtime {
-                message: "Only 1D and 2D arrays are supported".to_string(),
-                basic_line_number: None,
-                file_line_number: None,
-            }),
-        }
+        self.symbols.insert(array_key, array);
+        Ok(())
     }
     pub fn define_function(&mut self, name: String, param: Vec<String>, expr: Expression) -> Result<(), BasicError> {
         if self.symbols.contains_key(&name) {
@@ -425,7 +536,10 @@ mod tests {
         table.create_array("A".to_string(), vec![5]).unwrap();
         let val = table.get_symbol("A[]").unwrap(); // Arrays stored with [] suffix
         match val {
-            SymbolValue::Array1DNumber(v) => assert_eq!(v.len(), 5),
+            SymbolValue::Array { element_type: ArrayElementType::Number, dimensions, data: ArrayData::Numbers(v) } => {
+                assert_eq!(*dimensions, vec![5]);
+                assert_eq!(v.len(), 5);
+            },
             _ => panic!("Expected 1D number array"),
         }
     }
@@ -436,9 +550,9 @@ mod tests {
         table.create_array("S$".to_string(), vec![2, 3]).unwrap();
         let val = table.get_symbol("S$[]").unwrap(); // Arrays stored with [] suffix
         match val {
-            SymbolValue::Array2DString(v) => {
-                assert_eq!(v.len(), 2);
-                assert_eq!(v[0].len(), 3);
+            SymbolValue::Array { element_type: ArrayElementType::String, dimensions, data: ArrayData::Strings(v) } => {
+                assert_eq!(*dimensions, vec![2, 3]);
+                assert_eq!(v.len(), 6); // 2 * 3 = 6 total elements in flattened array
             }
             _ => panic!("Expected 2D string array"),
         }
