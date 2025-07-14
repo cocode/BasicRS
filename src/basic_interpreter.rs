@@ -395,7 +395,7 @@ impl Interpreter {
                             .map(|expr| match self.evaluate_expression(expr)? {
                                 SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
                                 SymbolValue::Number(n) => Err(BasicError::Runtime {
-                                    message: "Array index must be non-negative".to_string(),
+                                    message: format!("Array index must be non-negative, got: {}", n),
                                     basic_line_number: Some(self.get_current_line().line_number),
                                     file_line_number: None,
                                 }),
