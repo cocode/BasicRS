@@ -35,7 +35,7 @@ impl SymbolTable {
                 }
                 if indices[0] < ARRAY_OFFSET {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -43,7 +43,7 @@ impl SymbolTable {
                 let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -61,7 +61,7 @@ impl SymbolTable {
                 }
                 if indices[0] < ARRAY_OFFSET || indices[1] < ARRAY_OFFSET {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index ({}, {}) out of bounds for '{}'. Valid row range: {}-{}, col range: {}-{}", indices[0], indices[1], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET, ARRAY_OFFSET, vec[0].len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -71,7 +71,7 @@ impl SymbolTable {
 
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index ({}, {}) out of bounds for '{}'. Valid row range: {}-{}, col range: {}-{}", indices[0], indices[1], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET, ARRAY_OFFSET, vec[0].len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -89,7 +89,7 @@ impl SymbolTable {
                 }
                 if indices[0] < ARRAY_OFFSET {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -97,7 +97,7 @@ impl SymbolTable {
                 let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -115,7 +115,7 @@ impl SymbolTable {
                 }
                 if indices[0] < ARRAY_OFFSET || indices[1] < ARRAY_OFFSET {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index ({}, {}) out of bounds for '{}'. Valid row range: {}-{}, col range: {}-{}", indices[0], indices[1], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET, ARRAY_OFFSET, vec[0].len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -124,7 +124,7 @@ impl SymbolTable {
                 let col = adjust(indices[1]);
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index ({}, {}) out of bounds for '{}'. Valid row range: {}-{}, col range: {}-{}", indices[0], indices[1], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET, ARRAY_OFFSET, vec[0].len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -160,7 +160,7 @@ impl SymbolTable {
                 }
                 if indices[0] < ARRAY_OFFSET {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -168,7 +168,7 @@ impl SymbolTable {
                 let index = adjust(indices[0]);
                 if index  >= vec.len() {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -195,7 +195,7 @@ impl SymbolTable {
                 }
                 if indices[0] < ARRAY_OFFSET || indices[1] < ARRAY_OFFSET {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index ({}, {}) out of bounds for '{}'. Valid row range: {}-{}, col range: {}-{}", indices[0], indices[1], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET, ARRAY_OFFSET, vec[0].len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -204,7 +204,7 @@ impl SymbolTable {
                 let col = adjust(indices[1]);
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index ({}, {}) out of bounds for '{}'. Valid row range: {}-{}, col range: {}-{}", indices[0], indices[1], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET, ARRAY_OFFSET, vec[0].len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -231,7 +231,7 @@ impl SymbolTable {
                 }
                 if indices[0] < ARRAY_OFFSET {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -239,7 +239,7 @@ impl SymbolTable {
                 let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index {} out of bounds for '{}'. Valid range: {} to {}", indices[0], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -266,7 +266,7 @@ impl SymbolTable {
                 }
                 if indices[0] < ARRAY_OFFSET || indices[1] < ARRAY_OFFSET {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index ({}, {}) out of bounds for '{}'. Valid row range: {}-{}, col range: {}-{}", indices[0], indices[1], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET, ARRAY_OFFSET, vec[0].len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -275,7 +275,7 @@ impl SymbolTable {
                 let col = adjust(indices[1]);
                 if row >= vec.len() || col >= vec[row].len() {
                     return Err(BasicError::Runtime {
-                        message: "Array index out of bounds".to_string(),
+                        message: format!("Array index ({}, {}) out of bounds for '{}'. Valid row range: {}-{}, col range: {}-{}", indices[0], indices[1], name, ARRAY_OFFSET, vec.len() - 1 + ARRAY_OFFSET, ARRAY_OFFSET, vec[0].len() - 1 + ARRAY_OFFSET),
                         basic_line_number: None,
                         file_line_number: None,
                     });
