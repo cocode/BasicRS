@@ -768,7 +768,7 @@ impl Interpreter {
                                 .map(|expr| match self.evaluate_expression(expr)? {
                                     SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
                                     SymbolValue::Number(n) => Err(BasicError::Runtime {
-                                        message: "Array index must be non-negative".to_string(),
+                                        message: format!("Array index must be non-negative, got: {}", n),
                                         basic_line_number: Some(self.get_current_line().line_number),
                                         file_line_number: None,
                                     }),
@@ -867,7 +867,7 @@ impl Interpreter {
                     .map(|expr| match self.evaluate_expression(expr)? {
                         SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
                         SymbolValue::Number(n) => Err(BasicError::Runtime {
-                            message: "Array index must be non-negative".to_string(),
+                            message: format!("Array index must be non-negative, got: {}", n),
                             basic_line_number: Some(self.get_current_line().line_number),
                             file_line_number: None,
                         }),
@@ -1181,41 +1181,7 @@ impl Interpreter {
         &self.get_current_line().statements[self.location.offset]
     }
 
-
-    fn assign_lvalue(&mut self, expr: &Expression, value: SymbolValue) -> Result<(), BasicError> {
-        match &expr.expr_type {
-            ExpressionType::Variable(name) => {
-                self.put_symbol(name.clone(), value);
-                Ok(())
-            }
-            ExpressionType::Array { name, indices } => {
-                let idx_values: Result<Vec<usize>, BasicError> = indices.iter()
-                    .map(|expr| match self.evaluate_expression(expr)? {
-                        SymbolValue::Number(n) if n >= 0.0 => Ok(n as usize),
-                        SymbolValue::Number(n) => Err(BasicError::Runtime {
-                            message: "Array index must be non-negative".to_string(),
-                            basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: None,
-                        }),
-                        _ => Err(BasicError::Runtime {
-                            message: "Array index must be a number".to_string(),
-                            basic_line_number: Some(self.get_current_line().line_number),
-                            file_line_number: None,
-                        })
-                    })
-                    .collect();
-                let indices = idx_values?;
-                self.symbols.set_array_element(name, &indices, value).map_err(|e| self.add_line_info_to_error(e))?;
-                Ok(())
-            }
-            _ => Err(BasicError::Runtime {
-                message: "Invalid lvalue in READ statement".to_string(),
-                basic_line_number: Some(self.get_current_line().line_number),
-                file_line_number: None,
-            })
-        }
-    }
-
+    
     fn goto_else_or_next_line(&mut self) -> Result<(), BasicError> {
         let current_line = self.get_current_line();
         let mut offset = self.location.offset + 1;
