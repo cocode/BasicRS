@@ -1,7 +1,6 @@
 use crate::basic_types::{Token, BasicError, is_valid_identifier, IdentifierType};
 use crate::basic_function_registry::FUNCTION_REGISTRY;
 use crate::basic_keyword_registry::KEYWORD_REGISTRY;
-use crate::basic_operator_registry::OPERATOR_REGISTRY;
 
 pub struct Lexer {
     chars: Vec<char>,
@@ -110,6 +109,7 @@ impl Lexer {
     // Tokenize statements on a line (everything after line number until newline)
     pub fn tokenize_statements(&mut self) -> Result<Vec<Token>, BasicError> {
         let mut tokens = Vec::new();
+        
         while self.position < self.chars.len() {
             let c = self.chars[self.position];
             match c {
@@ -153,6 +153,7 @@ impl Lexer {
                 '"' => {
                     let mut string = String::new();
                     self.advance(); // Skip opening quote
+                    
                     let mut found_closing_quote = false;
                     while self.position < self.chars.len() {
                         let c = self.chars[self.position];
@@ -171,6 +172,7 @@ impl Lexer {
                         string.push(c);
                         self.advance();
                     }
+                    
                     if !found_closing_quote {
                         return Err(BasicError::Syntax {
                             message: "Unterminated string literal".to_string(),
@@ -178,12 +180,14 @@ impl Lexer {
                             file_line_number: Some(self.file_line_number),
                         });
                     }
+                    
                     tokens.push(Token::String(string));
                 }
                 'A'..='Z' | 'a'..='z' => {
                     // New lookahead-based identifier parsing for BASIC
                     let token = self.tokenize_identifier_lookahead()?;
                     tokens.push(token);
+                    
                     // Check if this was a REM token - if so, get the comment directly
                     if let Token::Rem = tokens.last().unwrap() {
                         // Collect the rest of the line as a comment
@@ -204,60 +208,89 @@ impl Lexer {
                         break;
                     }
                 }
-                // Operator and punctuation handling
-                _ => {
-                    // Try to match multi-character operators first (<=, >=, <>)
-                    let mut matched = false;
-                    let op_candidates = [2, 1]; // Try 2-char, then 1-char
-                    for &len in &op_candidates {
-                        if self.position + len <= self.chars.len() {
-                            let candidate: String = self.chars[self.position..self.position+len].iter().collect();
-                            if let Some(token) = OPERATOR_REGISTRY.get_token_for_operator(&candidate) {
-                                tokens.push(token);
-                                self.position += len;
-                                matched = true;
-                                break;
+                '+' => {
+                    tokens.push(Token::Plus);
+                    self.advance();
+                }
+                '-' => {
+                    tokens.push(Token::Minus);
+                    self.advance();
+                }
+                '*' => {
+                    tokens.push(Token::Star);
+                    self.advance();
+                }
+                '/' => {
+                    tokens.push(Token::Slash);
+                    self.advance();
+                }
+                '^' => {
+                    tokens.push(Token::Power);
+                    self.advance();
+                }
+                '=' => {
+                    tokens.push(Token::Equal);
+                    self.advance();
+                }
+                '<' => {
+                    self.advance();
+                    if self.position < self.chars.len() {
+                        match self.chars[self.position] {
+                            '=' => {
+                                tokens.push(Token::LessEqual);
+                                self.advance();
                             }
+                            '>' => {
+                                tokens.push(Token::NotEqual);
+                                self.advance();
+                            }
+                            _ => tokens.push(Token::Less),
                         }
+                    } else {
+                        tokens.push(Token::Less);
                     }
-                    if matched {
-                        continue;
+                }
+                '>' => {
+                    self.advance();
+                    if self.position < self.chars.len() && self.chars[self.position] == '=' {
+                        tokens.push(Token::GreaterEqual);
+                        self.advance();
+                    } else {
+                        tokens.push(Token::Greater);
                     }
-                    // Punctuation
-                    match c {
-                        '(' => {
-                            tokens.push(Token::LeftParen);
-                            self.advance();
-                        }
-                        ')' => {
-                            tokens.push(Token::RightParen);
-                            self.advance();
-                        }
-                        ',' => {
-                            tokens.push(Token::Comma);
-                            self.advance();
-                        }
-                        ';' => {
-                            tokens.push(Token::Semicolon);
-                            self.advance();
-                        }
-                        ':' => {
-                            tokens.push(Token::Colon);
-                            self.advance();
-                        }
-                        _ => {
-                            return Err(BasicError::Syntax {
-                                message: format!("Unexpected character: '{}' basic line {} file line {}", c,
-                                                 self.basic_line_number.unwrap_or(0).to_string(),
-                                                 self.file_line_number),
-                                basic_line_number: self.basic_line_number,
-                                file_line_number: Some(self.file_line_number),
-                            });
-                        }
-                    }
+                }
+                '(' => {
+                    tokens.push(Token::LeftParen);
+                    self.advance();
+                }
+                ')' => {
+                    tokens.push(Token::RightParen);
+                    self.advance();
+                }
+                ',' => {
+                    tokens.push(Token::Comma);
+                    self.advance();
+                }
+                ';' => {
+                    tokens.push(Token::Semicolon);
+                    self.advance();
+                }
+                ':' => {
+                    tokens.push(Token::Colon);
+                    self.advance();
+                }
+                _ => {
+                    return Err(BasicError::Syntax {
+                        message: format!("Unexpected character: '{}' basic line {} file line {}", c,
+                                         self.basic_line_number.unwrap_or(0).to_string(),
+                                         self.file_line_number),
+                        basic_line_number: self.basic_line_number,
+                        file_line_number: Some(self.file_line_number),
+                    });
                 }
             }
         }
+        
         Ok(tokens)
     }
 
