@@ -33,6 +33,13 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
+                if indices[0] < ARRAY_OFFSET {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
                 let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
@@ -48,6 +55,13 @@ impl SymbolTable {
                 if indices.len() != 2 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 2 indices", name),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
+                if indices[0] < ARRAY_OFFSET || indices[1] < ARRAY_OFFSET {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -73,6 +87,13 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
+                if indices[0] < ARRAY_OFFSET {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
                 let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
@@ -88,6 +109,13 @@ impl SymbolTable {
                 if indices.len() != 2 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 2 indices", name),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
+                if indices[0] < ARRAY_OFFSET || indices[1] < ARRAY_OFFSET {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -130,6 +158,13 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
+                if indices[0] < ARRAY_OFFSET {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
                 let index = adjust(indices[0]);
                 if index  >= vec.len() {
                     return Err(BasicError::Runtime {
@@ -154,6 +189,13 @@ impl SymbolTable {
                 if indices.len() != 2 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 2 indices", name),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
+                if indices[0] < ARRAY_OFFSET || indices[1] < ARRAY_OFFSET {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -187,6 +229,13 @@ impl SymbolTable {
                         file_line_number: None,
                     });
                 }
+                if indices[0] < ARRAY_OFFSET {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
                 let index = adjust(indices[0]);
                 if index >= vec.len() {
                     return Err(BasicError::Runtime {
@@ -211,6 +260,13 @@ impl SymbolTable {
                 if indices.len() != 2 {
                     return Err(BasicError::Runtime {
                         message: format!("Array '{}' expects 2 indices", name),
+                        basic_line_number: None,
+                        file_line_number: None,
+                    });
+                }
+                if indices[0] < ARRAY_OFFSET || indices[1] < ARRAY_OFFSET {
+                    return Err(BasicError::Runtime {
+                        message: "Array index out of bounds".to_string(),
                         basic_line_number: None,
                         file_line_number: None,
                     });
@@ -402,6 +458,15 @@ mod tests {
         let mut table = SymbolTable::new();
         table.create_array("A".to_string(), vec![2]).unwrap();
         let result = table.get_array_element("A", &[5]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_array_element_invalid_low_index() {
+        let mut table = SymbolTable::new();
+        table.create_array("A".to_string(), vec![2]).unwrap();
+        // Assumes ARRAY_OFFSET is 1, index 0 is invalid
+        let result = table.get_array_element("A", &[0]);
         assert!(result.is_err());
     }
 
