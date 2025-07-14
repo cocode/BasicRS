@@ -128,7 +128,7 @@ impl FunctionRegistry {
                 if value < 0.0 {
                     // Negative values seed the generator and return a random number
                     let seed = (value.abs() * 1000000.0) as u64;
-                    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+                    let mut rng = StdRng::seed_from_u64(seed);
                     let result: f64 = rng.gen();
                     Ok(result.to_string())
                 } else if value == 0.0 {
