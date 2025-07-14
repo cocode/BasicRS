@@ -1,0 +1,37 @@
+[package]
+name = "basic_rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# For error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# For string manipulation and text processing
+regex = "1.10"
+lazy_static = "1.4.0"
+
+# For command line interface
+clap = { version = "4.5", features = ["derive"] }
+
+# For testing
+pretty_assertions = "1.4"
+
+# For debugging and tracing
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# For random number generation
+rand = "0.8.5"
+
+# For serialization and deserialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# For date/time handling
+chrono = "0.4"
+
+[dev-dependencies]
+rstest = "0.18"
+wait-timeout = "0.2.0"
