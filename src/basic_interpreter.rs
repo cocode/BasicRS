@@ -692,7 +692,8 @@ impl Interpreter {
                     };
                     let next_value = current + step;
                     self.put_symbol(var.clone(), SymbolValue::Number(next_value));
-                    let val1 = self.get_symbol(var)?;
+                    // Make sure that put worked.
+                    let _ = self.get_symbol(var)?;
                     if (step >= 0.0 && next_value <= stop) || (step < 0.0 && next_value >= stop) {
                         if let Some(stmt_loc) = for_record.stmt {
                             self.control_transfer(stmt_loc);
