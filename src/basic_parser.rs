@@ -720,7 +720,7 @@ impl Parser {
     fn parse_identifier(&mut self) -> Result<String, BasicError> {
         let token = self.peek().cloned();
         match token {
-            Some(Token::Identifier(id, id_type)) => {
+            Some(Token::Identifier(id, _)) => {
                 self.advance();
                 Ok(id.clone())
             }
