@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use tracing_subscriber::fmt::writer::EitherWriter::A;
 use crate::basic_dialect::ARRAY_OFFSET;
 use crate::basic_types::{BasicError, Expression, SymbolValue};
 
