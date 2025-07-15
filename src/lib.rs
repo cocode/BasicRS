@@ -2,7 +2,6 @@ pub mod basic_types;
 pub mod basic_lexer;
 pub mod basic_parser;
 pub mod basic_operators;
-pub mod basic_operator_registry;
 pub mod basic_dialect;
 pub mod basic_function_registry;
 pub mod basic_keyword_registry;
