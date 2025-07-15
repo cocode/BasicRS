@@ -8,7 +8,6 @@ use crate::basic_reports::CoverageData;
 use crate::basic_types::{
     Program, ProgramLine, Statement, Expression, BasicError,
     ExpressionType, RunStatus, SymbolValue, Token, PrintItem,
-    ArrayElementType, ArrayData,
 };
 
 use crate::basic_function_registry::FUNCTION_REGISTRY;
@@ -1194,6 +1193,10 @@ mod tests {
     use crate::basic_parser::Parser;
     use super::*;
     use crate::basic_types::{Statement, Expression, ArrayDecl};
+    use crate::basic_types::{
+        ArrayElementType, ArrayData,
+    };
+    
 
     fn create_test_program(lines: Vec<(usize, Vec<Statement>)>) -> Program {
         let mut program = Program::new();
