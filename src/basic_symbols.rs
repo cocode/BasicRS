@@ -215,7 +215,7 @@ impl SymbolTable {
         let array_key = format!("{}[]", name);
         
         // First, validate indices without borrowing symbols mutably
-        let (adjusted_indices, flat_index) = {
+        let (_adjusted_indices, flat_index) = {
             let symbol = self.symbols.get(&array_key).ok_or(BasicError::Runtime {
                 message: format!("Array '{}' not found", name),
                 basic_line_number: None,
