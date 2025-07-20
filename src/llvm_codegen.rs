@@ -50,7 +50,7 @@ impl LLVMCodeGenerator {
         self.builder.add_main_function();
         
         // Initialize runtime (seed random, etc.)
-        self.init_runtime();
+        // self.init_runtime(); // TODO: Only call when RND() is used
         
         // Create basic blocks for each line
         for line in &self.program.lines {
