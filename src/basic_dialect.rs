@@ -22,23 +22,25 @@ pub const EXPONENTIATION_OPERATOR: &str = "^";
 /// 1 = One-based arrays (traditional BASIC): A(1) is first element
 pub const ARRAY_OFFSET: usize = 1;
 
-// =============================================================================
-// INPUT/OUTPUT CONFIGURATION
-// =============================================================================
 
 /// Controls whether user input is automatically converted to uppercase
 /// true = Convert input to uppercase (traditional BASIC behavior)
 /// false = Preserve original case of user input
 pub const UPPERCASE_INPUT: bool = true;
 
-// Maximum line number
+
+// =============================================================================
+// Not yet implemented features:
+// =============================================================================
+
+/// Maximum line number
 pub const MAX_LINE_NUMBER: usize = 99999;
 
-// Maximum string length
+/// Maximum string length
 pub const MAX_STRING_LENGTH: usize = 255;
 
 // Maximum array dimensions
-pub const MAX_ARRAY_DIMS: usize = 3;
+pub const MAX_ARRAY_DIMS: usize = 2;
 
 // Maximum number of variables
 pub const MAX_VARIABLES: usize = 1000;
@@ -47,10 +49,10 @@ pub const MAX_VARIABLES: usize = 1000;
 pub const MAX_RECURSION_DEPTH: usize = 100;
 
 // Maximum number of nested FOR loops
-pub const MAX_FOR_DEPTH: usize = 20;
+pub const MAX_FOR_DEPTH: usize = 200;
 
 // Maximum number of nested GOSUB calls
-pub const MAX_GOSUB_DEPTH: usize = 20;
+pub const MAX_GOSUB_DEPTH: usize = 200;
 
 
  
