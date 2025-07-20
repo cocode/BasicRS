@@ -8,3 +8,5 @@ pub mod basic_keyword_registry;
 pub mod basic_reports;
 pub mod basic_symbols;
 pub mod basic_interpreter;
+pub mod llvm_codegen;
+pub mod llvm_ir_builder;
