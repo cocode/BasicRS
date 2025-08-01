@@ -1,6 +1,11 @@
 #  <img src="images/logo2.png" alt="Logo" width="50" height="25"> BasicRS
 
-BasicRS is a Rust implementation of a BASIC Interpreter 
+BasicRS is a Rust implementation of a BASIC Interpreter, as well as a compiler.
+
+## Compiler
+
+The compiler works by generating [LLVM](https://llvm.org/) [IR](https://mcyoung.xyz/2023/08/01/llvm-ir/) code
+which then must be compiled with clang. Almost every platform has clang.
 
 ## To Run Unit Tests
 
